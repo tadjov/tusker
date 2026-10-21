@@ -31,6 +31,9 @@ type PackageRef struct {
 	ResourceHash string `json:"resourceHash"`
 }
 
+// ProgressRows is how many rows a corpus load writes between progress lines.
+const ProgressRows = 50_000
+
 type LoadOptions struct {
 	BatchSize int
 	SkipIndex bool

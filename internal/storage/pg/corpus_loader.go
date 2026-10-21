@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -254,11 +255,14 @@ func now() time.Time {
 }
 
 func timed(record *storage.LoadRecord, stage string, run func() error) error {
+	slog.Info("corpus load stage started", "engine", record.Engine, "stage", stage)
 	start := time.Now()
 	if err := run(); err != nil {
 		return err
 	}
-	record.Stages = append(record.Stages, storage.StageTiming{Name: stage, Seconds: time.Since(start).Seconds()})
+	seconds := time.Since(start).Seconds()
+	record.Stages = append(record.Stages, storage.StageTiming{Name: stage, Seconds: seconds})
+	slog.Info("corpus load stage finished", "engine", record.Engine, "stage", stage, "seconds", seconds)
 	return nil
 }
 
@@ -320,10 +324,17 @@ func copyBatches[T any](ctx context.Context, tx pgx.Tx, plan copyPlan[T]) error 
 	next, stop := iter.Pull2(plan.Items)
 	defer stop()
 	src := &batchSource[T]{next: next, toRow: plan.ToRow}
+	var copied, reported int64
 	for !src.exhausted {
 		src.left = plan.BatchSize
-		if _, err := tx.CopyFrom(ctx, pgx.Identifier{plan.Table}, plan.Columns, src); err != nil {
+		n, err := tx.CopyFrom(ctx, pgx.Identifier{plan.Table}, plan.Columns, src)
+		if err != nil {
 			return err
+		}
+		copied += n
+		if copied-reported >= storage.ProgressRows {
+			slog.Info("corpus load progress", "table", plan.Table, "rows", copied)
+			reported = copied
 		}
 	}
 	return nil

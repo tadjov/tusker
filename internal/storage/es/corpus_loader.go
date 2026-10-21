@@ -93,6 +93,7 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 
 	var stages []storage.StageTiming
 	timed := func(name string, stage func() error) error {
+		slog.Info("corpus load stage started", "index", index, "stage", name)
 		began := time.Now()
 		if err := stage(); err != nil {
 			return err
@@ -383,6 +384,7 @@ func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, bat
 	var batch bulkBatch
 	var counts writeCounts
 	failures := &DocumentsFailedError{Index: l.client.indexName}
+	var reported int64
 	flush := func() error {
 		if len(batch.ids) == 0 {
 			return nil
@@ -392,6 +394,10 @@ func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, bat
 		}
 		if err := l.sendBatch(ctx, &batch, &counts, failures); err != nil {
 			return err
+		}
+		if counts.articles-reported >= storage.ProgressRows {
+			slog.Info("corpus load progress", "index", l.client.indexName, "articles", counts.articles)
+			reported = counts.articles
 		}
 		batch = bulkBatch{}
 		return nil
