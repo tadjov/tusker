@@ -119,6 +119,7 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 		}
 	}
 	err = timed(&record, "vacuum_analyze", func() error {
+		defer storage.WatchStage(ctx, []any{"engine", record.Engine, "stage", "vacuum_analyze"}, nil)()
 		_, err := conn.Exec(ctx, "VACUUM (ANALYZE) articles, article_embeddings")
 		return err
 	})
@@ -235,7 +236,11 @@ func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record 
 			}
 			continue
 		}
-		if err := timed(record, s.Index, run); err != nil {
+		err := timed(record, s.Index, func() error {
+			defer storage.WatchStage(ctx, []any{"engine", record.Engine, "stage", s.Index}, l.indexBuildProgress(conn.PgConn().PID()))()
+			return run()
+		})
+		if err != nil {
 			return err
 		}
 	}
@@ -247,6 +252,27 @@ func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record 
 		record.Settings[name] = value
 	}
 	return nil
+}
+
+// indexBuildProgress reads how far the session's CREATE INDEX has got, or nothing when the index type reports none.
+func (l *CorpusLoader) indexBuildProgress(pid uint32) func(context.Context) []any {
+	return func(ctx context.Context) []any {
+		var phase string
+		var blocksDone, blocksTotal, tuplesDone, tuplesTotal int64
+		err := l.pool.conn.QueryRow(ctx, `SELECT phase, blocks_done, blocks_total, tuples_done, tuples_total
+			FROM pg_stat_progress_create_index WHERE pid = $1`, pid).Scan(&phase, &blocksDone, &blocksTotal, &tuplesDone, &tuplesTotal)
+		if err != nil {
+			return nil
+		}
+		attrs := []any{"phase", phase}
+		if blocksTotal > 0 {
+			attrs = append(attrs, "blocks", fmt.Sprintf("%d/%d", blocksDone, blocksTotal))
+		}
+		if tuplesTotal > 0 {
+			attrs = append(attrs, "tuples", fmt.Sprintf("%d/%d", tuplesDone, tuplesTotal))
+		}
+		return attrs
+	}
 }
 
 // now truncates to timestamptz's microseconds, so records round-trip through corpus_load.

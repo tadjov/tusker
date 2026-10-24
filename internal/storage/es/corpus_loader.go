@@ -120,10 +120,16 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 	}); err != nil {
 		return storage.LoadRecord{}, err
 	}
-	if err := timed("refresh", func() error { return l.refresh(ctx, written.articles) }); err != nil {
+	if err := timed("refresh", func() error {
+		defer storage.WatchStage(ctx, []any{"index", index, "stage", "refresh"}, nil)()
+		return l.refresh(ctx, written.articles)
+	}); err != nil {
 		return storage.LoadRecord{}, err
 	}
-	if err := timed("force_merge", func() error { return l.forceMerge(ctx) }); err != nil {
+	if err := timed("force_merge", func() error {
+		defer storage.WatchStage(ctx, []any{"index", index, "stage", "force_merge"}, nil)()
+		return l.forceMerge(ctx)
+	}); err != nil {
 		return storage.LoadRecord{}, err
 	}
 
@@ -247,7 +253,6 @@ func (l *CorpusLoader) waitForTask(ctx context.Context, taskID string) error {
 		res, err := l.client.typed.Tasks.Get(taskID).WaitForCompletion(true).Timeout(l.taskPollTimeout()).Do(ctx)
 		var esErr *types.ElasticsearchError
 		if errors.As(err, &esErr) && esErr.ErrorCause.Type == "timeout_exception" {
-			slog.Info("waiting for elasticsearch task", "task", taskID)
 			continue
 		}
 		if err != nil {
