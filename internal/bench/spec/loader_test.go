@@ -302,3 +302,46 @@ jobs:
 	assert.Equal(t, "/abs/path/suite.yaml", s.Jobs[1].Suite,
 		"absolute suite paths must be left alone")
 }
+
+func TestParse_RejectsUnknownKeys(t *testing.T) {
+	tests := []struct {
+		name, body, key string
+	}{
+		{
+			name: "misspelt metrics key",
+			body: `engines:
+  pg:
+    type: postgres
+    connection: "postgresql://localhost/test"
+metrics:
+  relevance_treshold: 2
+jobs:
+  - name: test
+    suite: suite.yaml
+    engines: [pg]
+`,
+			key: "relevance_treshold",
+		},
+		{
+			name: "misspelt engine key",
+			body: `engines:
+  pg:
+    type: postgres
+    connection: "postgresql://localhost/test"
+    connection_setings:
+      hnsw.ef_search: "100"
+jobs:
+  - name: test
+    suite: suite.yaml
+    engines: [pg]
+`,
+			key: "connection_setings",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]byte(validSpecHeader + tc.body))
+			assert.ErrorContains(t, err, tc.key)
+		})
+	}
+}

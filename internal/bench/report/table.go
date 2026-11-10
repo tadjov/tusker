@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
@@ -206,19 +207,17 @@ func writeMDSignificanceTable(w io.Writer, jr *JobReport) {
 	fmt.Fprintf(w, "### Statistical Significance (Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs)\n\n")
 
 	t := newMDTable()
-	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "p (Holm)", "Sig"})
+	t.AppendHeader(significanceHeader)
 	for _, s := range jr.Significance {
 		sig := "ns"
-		if s.Stars != "" {
+		switch {
+		case s.Untestable:
+			sig = untestable
+		case s.Stars != "":
 			sig = s.Stars
 		}
-		t.AppendRow(table.Row{
-			s.EngineA, s.EngineB, s.Metric,
-			fmt.Sprintf("%.1f", s.W),
-			fmt.Sprintf("%.4f", s.P),
-			fmtRecorded(s.AdjustedP),
-			sig,
-		})
+		w, p, adjusted := testCells(s)
+		t.AppendRow(table.Row{s.EngineA, s.EngineB, s.Metric, fmtMeanDifference(s.MeanDifference), w, p, adjusted, sig})
 	}
 	fmt.Fprintln(w, t.RenderMarkdown())
 	fmt.Fprintln(w)
@@ -411,21 +410,42 @@ func writeSignificanceTable(w io.Writer, jr *JobReport) {
 		tBold.Sprint("Statistical Significance (Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs · * p<0.05 · ** p<0.01)"))
 
 	t := newTable(w)
-	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "p (Holm)", "Sig"})
-	t.SetColumnConfigs(rightCols(4, 5, 6))
+	t.AppendHeader(significanceHeader)
+	t.SetColumnConfigs(rightCols(4, 5, 6, 7))
 
 	for _, s := range jr.Significance {
-		t.AppendRow(table.Row{
-			s.EngineA, s.EngineB, s.Metric,
-			fmt.Sprintf("%.1f", s.W),
-			fmt.Sprintf("%.4f", s.P),
-			fmtRecorded(s.AdjustedP),
-			colorSig(s.Stars),
-		})
+		sig := colorSig(s.Stars)
+		if s.Untestable {
+			sig = tDim.Sprint(untestable)
+		}
+		w, p, adjusted := testCells(s)
+		t.AppendRow(table.Row{s.EngineA, s.EngineB, s.Metric, fmtMeanDifference(s.MeanDifference), w, p, adjusted, sig})
 	}
 
 	t.Render()
 	fmt.Fprintln(w)
+}
+
+var significanceHeader = table.Row{"Engine A", "Engine B", "Metric", "Δ A−B [95% CI]", "W", "p-value", "p (Holm)", "Sig"}
+
+// untestable marks a pair with fewer than 4 non-zero differences, which
+// Wilcoxon cannot test.
+const untestable = "untestable"
+
+func testCells(s PairwiseSignificance) (w, p, adjusted string) {
+	if s.Untestable {
+		return "—", "—", "—"
+	}
+	return fmt.Sprintf("%.1f", s.W), fmt.Sprintf("%.4f", s.P), fmtRecorded(s.AdjustedP)
+}
+
+// fmtMeanDifference shows a dash for reports written before the difference was
+// recorded, which would otherwise read as no difference.
+func fmtMeanDifference(d *metrics.Interval) string {
+	if d == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%+.4f [%+.4f, %+.4f]", d.Mean, d.Low, d.High)
 }
 
 func colorSig(stars string) string {
@@ -442,7 +462,7 @@ func colorSig(stars string) string {
 func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 	fmt.Fprintf(w, "%s\n\n", tBold.Sprint("Per-Query Results"))
 
-	k := primaryK(kValues)
+	k := largestK(kValues)
 
 	t := newTable(w)
 	t.AppendHeader(table.Row{
@@ -522,13 +542,6 @@ func largestK(kValues []int) int {
 		return 0
 	}
 	return slices.Max(kValues)
-}
-
-func primaryK(kValues []int) int {
-	if len(kValues) > 0 {
-		return kValues[len(kValues)-1]
-	}
-	return 10
 }
 
 func fmtScore(scores map[int]float64, k int) string {

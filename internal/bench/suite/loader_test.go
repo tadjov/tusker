@@ -215,3 +215,41 @@ func TestLoadFromFile_FileQueryResolvesBesideTheSuite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "SELECT id FROM articles WHERE id = $1", resolved.Query)
 }
+
+func TestParse_RejectsUnknownKeys(t *testing.T) {
+	tests := []struct {
+		name, body, key string
+	}{
+		{
+			name: "misspelt query key",
+			body: `queries:
+  - id: q1
+    categroy: phrase
+    engines:
+      pg: "SELECT 1"
+`,
+			key: "categroy",
+		},
+		{
+			name: "misspelt key inside an engine block",
+			body: `templates:
+  - id: pg_fts
+    args: [term]
+    query: "SELECT id FROM articles WHERE term = $1"
+queries:
+  - id: q1
+    engines:
+      pg:
+        template: pg_fts
+        parmas: { term: climate }
+`,
+			key: "parmas",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + tc.body))
+			assert.ErrorContains(t, err, tc.key)
+		})
+	}
+}

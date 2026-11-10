@@ -2,8 +2,10 @@ package report
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -534,4 +536,213 @@ func TestWriters_UnjudgedRowKeepsJudgedAndErrorsUnderTheirHeaders(t *testing.T) 
 			}
 		})
 	}
+}
+
+// judgedRun scores every engine on query i with apByEngine[engine][i] for every metric.
+func judgedRun(engines []string, apByEngine map[string][]float64) *runner.BenchmarkResult {
+	judged := map[string]int{"11111111-1111-1111-1111-111111111111": 1}
+	jr := &runner.JobResult{JobName: "pairs", EngineNames: engines, Results: make(map[string]map[string]runner.QueryResult)}
+	br := &runner.BenchmarkResult{
+		Config: runner.Config{KValues: []int{10}, RelevanceThreshold: 1, Judgments: map[string]map[string]int{}},
+		Jobs:   []*runner.JobResult{jr},
+	}
+	for i := range apByEngine[engines[0]] {
+		qid := fmt.Sprintf("q%d", i)
+		br.Config.Judgments[qid] = judged
+		jr.QueryOrder = append(jr.QueryOrder, qid)
+		jr.Results[qid] = make(map[string]runner.QueryResult)
+		for _, engine := range engines {
+			jr.Results[qid][engine] = answered(qid, engine, apByEngine[engine][i], time.Millisecond)
+		}
+	}
+	return br
+}
+
+func TestGenerate_UntestablePairStaysInTheHolmFamilyAtPOne(t *testing.T) {
+	// "twin" differs from "a" on two queries only, too few for Wilcoxon.
+	br := judgedRun([]string{"a", "b", "c", "twin"}, map[string][]float64{
+		"a":    {0.9, 0.8, 0.75, 0.6, 0.55, 0.4, 0.35},
+		"b":    {0.1, 0.85, 0.5, 0.2, 0.4, 0.37, 0.0},
+		"c":    {0.06, 0.03, 0.21, 0.1, 0.47, 0.02, 0.33},
+		"twin": {0.7, 0.8, 0.75, 0.5, 0.55, 0.4, 0.35},
+	})
+
+	byPair := make(map[string]PairwiseSignificance)
+	for _, s := range Generate(br, nil).Jobs[0].Significance {
+		if s.Metric == "MAP" {
+			byPair[s.EngineA+"-"+s.EngineB] = s
+		}
+	}
+
+	// Raw p from scipy.stats.wilcoxon (exact), the untestable pair at 1.0;
+	// adjusted from statsmodels multipletests(method="holm") over all six.
+	tests := []struct {
+		pair          string
+		raw, adjusted float64
+		untestable    bool
+	}{
+		{pair: "a-b", raw: 0.046875, adjusted: 0.1875},
+		{pair: "a-c", raw: 0.015625, adjusted: 0.09375},
+		{pair: "a-twin", raw: 1, adjusted: 1, untestable: true},
+		{pair: "b-c", raw: 0.296875, adjusted: 0.59375},
+		{pair: "b-twin", raw: 0.046875, adjusted: 0.1875},
+		{pair: "c-twin", raw: 0.015625, adjusted: 0.09375},
+	}
+	for _, tc := range tests {
+		t.Run(tc.pair, func(t *testing.T) {
+			got, ok := byPair[tc.pair]
+			require.True(t, ok)
+			assert.Equal(t, tc.untestable, got.Untestable)
+			assert.InDelta(t, tc.raw, got.P, 1e-12)
+			require.NotNil(t, got.AdjustedP)
+			assert.InDelta(t, tc.adjusted, *got.AdjustedP, 1e-12)
+		})
+	}
+
+	untestable := byPair["a-twin"]
+	require.NotNil(t, untestable.MeanDifference)
+	assert.InDelta(t, 0.3/7, untestable.MeanDifference.Mean, 1e-12, "(0.9-0.7 + 0.6-0.5) over seven queries")
+	assert.Empty(t, untestable.Stars)
+}
+
+func TestGenerate_MeanDifferenceIsAMinusBAndReproducible(t *testing.T) {
+	run := func() []PairwiseSignificance {
+		return Generate(judgedRun([]string{"a", "b"}, map[string][]float64{
+			"a": {0.9, 0.8, 0.75, 0.6, 0.55, 0.4, 0.35},
+			"b": {0.1, 0.85, 0.5, 0.2, 0.4, 0.37, 0.0},
+		}), nil).Jobs[0].Significance
+	}
+
+	first, second := run(), run()
+
+	require.NotEmpty(t, first)
+	for _, s := range first {
+		require.NotNil(t, s.MeanDifference, s.Metric)
+		assert.InDelta(t, 1.93/7, s.MeanDifference.Mean, 1e-12, s.Metric)
+		assert.LessOrEqual(t, s.MeanDifference.Low, s.MeanDifference.Mean, s.Metric)
+		assert.GreaterOrEqual(t, s.MeanDifference.High, s.MeanDifference.Mean, s.Metric)
+	}
+	firstJSON, err := json.Marshal(first)
+	require.NoError(t, err)
+	secondJSON, err := json.Marshal(second)
+	require.NoError(t, err)
+	assert.Equal(t, firstJSON, secondJSON)
+}
+
+func TestWriters_ShowTheMeanDifferenceAndUntestablePairs(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:    "effect",
+			PerQuery:   []Entry{{QueryID: "q1", EngineName: "a", Judged: true}},
+			Aggregated: []AggregatedEntry{{EngineName: "a", JudgedCount: 1, QueryCount: 1}},
+			Significance: []PairwiseSignificance{
+				{EngineA: "a", EngineB: "b", Metric: "MAP", W: 2, P: 0.0123, AdjustedP: ptr(0.0369), Stars: "*",
+					MeanDifference: &metrics.Interval{Mean: 0.0627, Low: -0.0137, High: 0.1097}},
+				{EngineA: "a", EngineB: "twin", Metric: "MAP", P: 1, AdjustedP: ptr(1), Untestable: true,
+					MeanDifference: &metrics.Interval{Mean: 0, Low: 0, High: 0}},
+			},
+		}},
+	}
+	var terminal, markdown bytes.Buffer
+	WriteTable(r, &terminal)
+	WriteMarkdown(r, &markdown)
+	page, err := RenderHTML(r)
+	require.NoError(t, err)
+
+	for name, out := range map[string]string{"table": terminal.String(), "markdown": markdown.String(), "html": html.UnescapeString(string(page))} {
+		assert.Contains(t, out, "+0.0627 [-0.0137, +0.1097]", name)
+	}
+	twinRows := map[string]string{
+		"table":    lineContaining(terminal.String(), "twin"),
+		"markdown": lineContaining(markdown.String(), "twin"),
+		"html":     regexp.MustCompile(`(?s)<td>twin</td>(.*?)</tr>`).FindString(string(page)),
+	}
+	for name, row := range twinRows {
+		assert.Contains(t, row, "untestable", name)
+	}
+}
+
+func lineContaining(text, substr string) string {
+	for line := range strings.Lines(text) {
+		if strings.Contains(line, substr) {
+			return line
+		}
+	}
+	return ""
+}
+
+func TestWriteHTML_ShowsQualityOnlyForEnginesWithJudgedQueries(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName: "quality",
+			Aggregated: []AggregatedEntry{
+				{EngineName: "judged", JudgedCount: 1, QueryCount: 1, NDCG: map[int]float64{10: 0.75}, MAP: 0.5},
+				{EngineName: "unjudged", JudgedCount: 0, QueryCount: 1, NDCG: map[int]float64{10: 0}},
+			},
+		}},
+	}
+
+	page, err := RenderHTML(r)
+	require.NoError(t, err)
+
+	unjudgedRow := regexp.MustCompile(`(?s)<td>unjudged</td>(.*?)</tr>`).FindStringSubmatch(string(page))
+	require.NotNil(t, unjudgedRow)
+	assert.NotContains(t, unjudgedRow[1], "0.0000", "no judged query, so no score")
+	assert.Contains(t, unjudgedRow[1], "N/A")
+	judgedRow := regexp.MustCompile(`(?s)<td>judged</td>(.*?)</tr>`).FindStringSubmatch(string(page))
+	require.NotNil(t, judgedRow)
+	assert.Contains(t, judgedRow[1], "0.7500")
+}
+
+func TestWriteHTML_PerQueryTableScoresAtTheLargestK(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10, 3}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:  "cutoffs",
+			PerQuery: []Entry{{QueryID: "q1", EngineName: "pg", Judged: true, NDCG: map[int]float64{3: 0.25, 10: 0.75}}},
+		}},
+	}
+
+	page, err := RenderHTML(r)
+	require.NoError(t, err)
+
+	row := regexp.MustCompile(`(?s)<td>q1</td><td>pg</td>(.*?)</tr>`).FindStringSubmatch(string(page))
+	require.NotNil(t, row)
+	assert.Contains(t, row[1], "0.7500")
+	assert.NotContains(t, row[1], "0.2500")
+}
+
+func TestWriteHTML_GlossaryDefinesEveryReportedColumn(t *testing.T) {
+	page, err := RenderHTML(&Report{Config: ReportConfig{KValues: []int{10}}})
+	require.NoError(t, err)
+
+	terms := regexp.MustCompile(`<dt>([^<]*)</dt>`).FindAllStringSubmatch(html.UnescapeString(string(page)), -1)
+	var defined []string
+	for _, term := range terms {
+		defined = append(defined, term[1])
+	}
+	for _, column := range []string{"MAP", "MRR", "Bpref", "P@K", "Coverage@K", "Δ A−B [95% CI]", "p (Holm)"} {
+		assert.Contains(t, defined, column)
+	}
+}
+
+func TestWriteTable_PerQueryTableScoresAtTheLargestK(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10, 3, 5}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:  "cutoffs",
+			PerQuery: []Entry{{QueryID: "q1", EngineName: "pg", Judged: true, NDCG: map[int]float64{3: 0.25, 5: 0.5, 10: 0.75}}},
+		}},
+	}
+	var out bytes.Buffer
+
+	WriteTable(r, &out)
+
+	_, perQuery, found := strings.Cut(out.String(), "Per-Query Results")
+	require.True(t, found)
+	assert.Contains(t, perQuery, "NDCG@10")
+	assert.Contains(t, perQuery, "0.7500")
+	assert.NotContains(t, perQuery, "0.5000")
 }

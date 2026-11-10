@@ -107,7 +107,10 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
     <div class="glossary-entry"><dt>MRR</dt><dd>Mean Reciprocal Rank - 1 ÷ rank of first relevant result, averaged across queries. Measures how quickly the first correct answer appears.</dd></div>
     <div class="glossary-entry"><dt>Bpref</dt><dd>Binary Preference - fraction of relevant documents ranked above non-relevant ones. More robust than MAP when judgments are incomplete.</dd></div>
     <div class="glossary-entry"><dt>P@K</dt><dd>Precision at K - fraction of top-K results that are relevant. Straightforward but ignores rank within the K results.</dd></div>
-    <div class="glossary-entry"><dt>Wilcoxon test</dt><dd>Non-parametric paired significance test across queries. ns = not significant; * p&lt;0.05; ** p&lt;0.01. With n=10 queries the test has limited power - treat ns as "inconclusive".</dd></div>
+    <div class="glossary-entry"><dt>Coverage@K</dt><dd>Share of the engine's retrieved docs within the largest K, over the judged queries, that carry a grade. A low value means the pool missed what the engine returns and its scores undercount.</dd></div>
+    <div class="glossary-entry"><dt>Wilcoxon test</dt><dd>Non-parametric paired significance test across queries. ns = not significant; * p&lt;0.05; ** p&lt;0.01 on the Holm-adjusted p. A pair with fewer than 4 queries that differ is untestable. With few queries the test has limited power - treat ns as "inconclusive".</dd></div>
+    <div class="glossary-entry"><dt>p (Holm)</dt><dd>The p-value Holm-adjusted across the job's engine pairs on one metric. An untestable pair counts in the family at p = 1.</dd></div>
+    <div class="glossary-entry"><dt>Δ A−B [95% CI]</dt><dd>Mean per-query difference, engine A minus engine B, with its 95% percentile bootstrap interval over 10,000 resamples of the judged queries. The interval is not Holm-adjusted, so one clear of zero can still read ns.</dd></div>
     <div class="glossary-entry"><dt>NDCG ±stddev</dt><dd>Sample standard deviation of per-query NDCG values. High stddev means inconsistent ranking quality - some queries are handled well, others poorly.</dd></div>
     <div class="glossary-entry"><dt>Latency chart</dt><dd>p50 (median) latency on a logarithmic scale. Log scale is used because the range spans multiple orders of magnitude (µs → seconds).</dd></div>
   </div>
@@ -193,12 +196,12 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
   <div class="section">
     <div class="section-title">Statistical Significance <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs &nbsp;·&nbsp; * p&lt;0.05 &nbsp; ** p&lt;0.01)</span></div>
     <table>
-      <thead><tr><th>Engine A</th><th>Engine B</th><th>Metric</th><th>W</th><th>p-value</th><th>p (Holm)</th><th>Sig</th></tr></thead>
+      <thead><tr><th>Engine A</th><th>Engine B</th><th>Metric</th><th>Δ A−B [95% CI]</th><th>W</th><th>p-value</th><th>p (Holm)</th><th>Sig</th></tr></thead>
       <tbody>
       {{range .Significance}}<tr>
         <td>{{.EngineA}}</td><td>{{.EngineB}}</td><td>{{.Metric}}</td>
-        <td>{{.W}}</td><td>{{.P}}</td><td>{{.AdjustedP}}</td>
-        <td>{{if .NS}}<span class="sig-ns">ns</span>{{else}}<span class="sig-sig">{{.Stars}}</span>{{end}}</td>
+        <td>{{.MeanDifference}}</td><td>{{.W}}</td><td>{{.P}}</td><td>{{.AdjustedP}}</td>
+        <td>{{if .Untestable}}<span class="sig-ns">untestable</span>{{else if .NS}}<span class="sig-ns">ns</span>{{else}}<span class="sig-sig">{{.Stars}}</span>{{end}}</td>
       </tr>{{end}}
       </tbody>
     </table>

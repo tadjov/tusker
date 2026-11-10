@@ -1,7 +1,10 @@
 package spec
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -59,7 +62,9 @@ func resolveJobSuitePaths(bs *BenchSpec, specDir string) {
 
 func Parse(data []byte) (*BenchSpec, error) {
 	var s BenchSpec
-	if err := yaml.Unmarshal(data, &s); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&s); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parse spec YAML: %w", err)
 	}
 	if err := validate(&s); err != nil {

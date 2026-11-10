@@ -1,7 +1,10 @@
 package suite
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -32,7 +35,9 @@ func LoadFromFile(path string) (*LoadedSuite, error) {
 
 func Parse(data []byte) (*LoadedSuite, error) {
 	var s TestSuite
-	if err := yaml.Unmarshal(data, &s); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&s); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parse suite YAML: %w", err)
 	}
 	if err := version.CheckSchema(s.SchemaVersion, "suite"); err != nil {

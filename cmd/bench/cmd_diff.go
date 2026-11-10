@@ -420,11 +420,15 @@ func fmtDelta(format string, a, b float64, higherBetter bool) string {
 	if !improved {
 		arrow = "↓"
 	}
-	pct := 0.0
-	if a != 0 {
-		pct = d / a * 100
+	return fmt.Sprintf(format+"→"+format+" %s%s", a, b, arrow, fmtRelativeChange(d, a))
+}
+
+// fmtRelativeChange has no percentage to give for a change from zero.
+func fmtRelativeChange(change, baseline float64) string {
+	if baseline == 0 {
+		return "n/a"
 	}
-	return fmt.Sprintf(format+"→"+format+" %s%+.1f%%", a, b, arrow, pct)
+	return fmt.Sprintf("%+.1f%%", change/baseline*100)
 }
 
 func fmtDurationDelta(a, b time.Duration) string {
@@ -441,11 +445,7 @@ func fmtDurationDelta(a, b time.Duration) string {
 	if improved {
 		arrow = "↓" // down = faster = better
 	}
-	pct := 0.0
-	if a != 0 {
-		pct = float64(d) / float64(a) * 100
-	}
-	s := fmt.Sprintf("%s→%s %s%+.1f%%", durStr(a), durStr(b), arrow, pct)
+	s := fmt.Sprintf("%s→%s %s%s", durStr(a), durStr(b), arrow, fmtRelativeChange(float64(d), float64(a)))
 	if improved {
 		return cOK.Sprint(s)
 	}

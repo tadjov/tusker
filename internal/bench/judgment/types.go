@@ -1,8 +1,11 @@
 package judgment
 
 import (
+	"fmt"
+
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -52,4 +55,32 @@ func (f *File) GradeCounts() (graded, unjudged int) {
 type Entry struct {
 	QueryID string      `yaml:"query_id"`
 	Docs    []GradedDoc `yaml:"docs"`
+}
+
+// UnmarshalYAML rejects a doc without a grade key, which would otherwise
+// decode as grade 0, a confident "not relevant".
+func (e *Entry) UnmarshalYAML(value *yaml.Node) error {
+	type plain Entry
+	if err := value.Decode((*plain)(e)); err != nil {
+		return err
+	}
+	docs := mappingValue(value, "docs")
+	if docs == nil {
+		return nil
+	}
+	for i, doc := range docs.Content {
+		if mappingValue(doc, "grade") == nil {
+			return fmt.Errorf("query %q doc %s has no grade", e.QueryID, e.Docs[i].DocID)
+		}
+	}
+	return nil
+}
+
+func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1]
+		}
+	}
+	return nil
 }

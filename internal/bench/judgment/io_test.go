@@ -3,6 +3,7 @@ package judgment
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/google/uuid"
@@ -234,4 +235,33 @@ func TestIncrementalWriter_LoadPriorDropsQueriesThatLeftThePool(t *testing.T) {
 		ids = append(ids, qe.QueryID)
 	}
 	assert.ElementsMatch(t, []string{"q1", "q2"}, ids)
+}
+
+func TestReadFile_KeepsGradeZeroAndRejectsAMissingGrade(t *testing.T) {
+	notRelevant, unjudged, highly := uuid.New(), uuid.New(), uuid.New()
+	written := &File{
+		SchemaVersion: 1,
+		Meta:          meta.Meta{Judge: &meta.Judge{Strategy: "manual"}},
+		Queries: []Entry{
+			{QueryID: "q1", Docs: []GradedDoc{{DocID: notRelevant, Grade: GradeNotRelev}, {DocID: unjudged, Grade: GradeUnjudged}}},
+			{QueryID: "q2", Docs: []GradedDoc{{DocID: highly, Grade: GradeHighly}}},
+		},
+	}
+	path := filepath.Join(t.TempDir(), "annotations.manual.yaml")
+	require.NoError(t, WriteFile(written, path))
+
+	read, err := ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, written.Queries, read.Queries)
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	gradeLine := regexp.MustCompile(`(doc_id: ` + notRelevant.String() + `\n)\s*grade: 0\n`)
+	require.Regexp(t, gradeLine, string(raw))
+	require.NoError(t, os.WriteFile(path, gradeLine.ReplaceAll(raw, []byte("$1")), 0o644))
+
+	_, err = ReadFile(path)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "q1")
+	assert.ErrorContains(t, err, notRelevant.String())
 }

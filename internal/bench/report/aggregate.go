@@ -2,6 +2,7 @@ package report
 
 import (
 	"fmt"
+	"hash/fnv"
 	"math"
 	"net/url"
 	"strings"
@@ -313,9 +314,8 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 	return entries
 }
 
-// computeSignificance runs pairwise Wilcoxon signed-rank tests for every
-// engine pair in the job, for NDCG@K (all K values), MAP, and MRR, over the
-// job's judged queries.
+// computeSignificance compares every engine pair in the job on NDCG@K (all K
+// values), MAP, and MRR, over the job's judged queries.
 func computeSignificance(scope jobScope) []PairwiseSignificance {
 	jr, kValues := scope.job, scope.kValues
 	engNames := jr.EngineNames
@@ -344,32 +344,52 @@ func computeSignificance(scope jobScope) []PairwiseSignificance {
 					ndcgB[k] = append(ndcgB[k], scoresB.NDCG[k])
 				}
 			}
+			if len(mapA) == 0 {
+				continue
+			}
 
 			for _, k := range kValues {
-				if res := metrics.Wilcoxon(ndcgA[k], ndcgB[k]); res != nil {
-					results = append(results, PairwiseSignificance{
-						EngineA: engA, EngineB: engB,
-						Metric: fmt.Sprintf("NDCG@%d", k),
-						W:      res.W, P: res.P,
-					})
-				}
+				results = append(results, comparePair(pairedScores{
+					engineA: engA, engineB: engB, metric: fmt.Sprintf("NDCG@%d", k), a: ndcgA[k], b: ndcgB[k],
+				}))
 			}
-			if res := metrics.Wilcoxon(mapA, mapB); res != nil {
-				results = append(results, PairwiseSignificance{
-					EngineA: engA, EngineB: engB, Metric: "MAP",
-					W: res.W, P: res.P,
-				})
-			}
-			if res := metrics.Wilcoxon(mrrA, mrrB); res != nil {
-				results = append(results, PairwiseSignificance{
-					EngineA: engA, EngineB: engB, Metric: "MRR",
-					W: res.W, P: res.P,
-				})
-			}
+			results = append(results,
+				comparePair(pairedScores{engineA: engA, engineB: engB, metric: "MAP", a: mapA, b: mapB}),
+				comparePair(pairedScores{engineA: engA, engineB: engB, metric: "MRR", a: mrrA, b: mrrB}),
+			)
 		}
 	}
 	adjustAcrossEnginePairs(results)
 	return results
+}
+
+// pairedScores lines a and b up by query.
+type pairedScores struct {
+	engineA, engineB, metric string
+	a, b                     []float64
+}
+
+// comparePair seeds the bootstrap from the pair and metric names, so a report
+// regenerated from the same results is identical.
+func comparePair(scores pairedScores) PairwiseSignificance {
+	differences := make([]float64, len(scores.a))
+	for i := range scores.a {
+		differences[i] = scores.a[i] - scores.b[i]
+	}
+	seed := fnv.New64a()
+	_, _ = seed.Write([]byte(scores.engineA + "\x00" + scores.engineB + "\x00" + scores.metric))
+	meanDifference := metrics.BootstrapMean(differences, seed.Sum64())
+
+	result := PairwiseSignificance{
+		EngineA: scores.engineA, EngineB: scores.engineB, Metric: scores.metric,
+		MeanDifference: &meanDifference,
+	}
+	if test := metrics.Wilcoxon(scores.a, scores.b); test != nil {
+		result.W, result.P = test.W, test.P
+	} else {
+		result.Untestable, result.P = true, 1
+	}
+	return result
 }
 
 // adjustAcrossEnginePairs applies the Holm correction to each metric's family

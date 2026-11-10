@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
@@ -273,4 +274,17 @@ func TestPrintDiff_SameJudgmentsFileInAMovedTrackIsNotAWarning(t *testing.T) {
 	var different bytes.Buffer
 	printDiff(&different, diffReport(before), diffReport(swapped))
 	assert.Contains(t, different.String(), "judgments: trec/annotations.lexical.yaml → trec/annotations.bm25.yaml")
+}
+
+func TestPrintDiff_ChangeFromAZeroBaselineHasNoPercentage(t *testing.T) {
+	before := diffReport(diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0}, threshold: 1})
+	after := diffReport(diffRun{runID: "b", kValues: []int{10}, ndcg: map[int]float64{10: 0.4}, threshold: 1})
+	after.Jobs[0].Aggregated[0].Latency = report.LatencyStats{Percentiles: map[int]time.Duration{50: 3 * time.Millisecond}}
+
+	var out bytes.Buffer
+	printDiff(&out, before, after)
+	got := out.String()
+
+	assert.Contains(t, got, "n/a")
+	assert.NotContains(t, got, "+0.0%")
 }

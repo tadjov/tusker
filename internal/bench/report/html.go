@@ -143,9 +143,11 @@ type htmlLatRow struct {
 
 type htmlSigRow struct {
 	EngineA, EngineB, Metric string
+	MeanDifference           string
 	W, P, AdjustedP          string
 	Stars                    string
 	NS                       bool
+	Untestable               bool
 }
 
 type htmlQueryRow struct {
@@ -155,6 +157,36 @@ type htmlQueryRow struct {
 	P50, P95                                      string
 	Status                                        string
 	IsErr                                         bool
+}
+
+// htmlQualityCells reads N/A for an engine with no judged query, which has no
+// scores to average.
+func htmlQualityCells(agg AggregatedEntry, kVals []int) htmlAggRow {
+	var row htmlAggRow
+	if agg.JudgedCount == 0 {
+		notApplicable := htmlCell{Val: "N/A"}
+		for range kVals {
+			row.NDCG = append(row.NDCG, notApplicable)
+			row.NDCGLinear = append(row.NDCGLinear, notApplicable.Val)
+		}
+		row.MAP, row.MRR, row.Bpref, row.Coverage = notApplicable, notApplicable, notApplicable, notApplicable.Val
+		return row
+	}
+	for _, k := range kVals {
+		c := htmlCell{Val: fmt.Sprintf("%.4f", agg.NDCG[k])}
+		if sd := agg.NDCGStddev[k]; sd > 0 {
+			c.Stddev = fmt.Sprintf("%.4f", sd)
+		}
+		row.NDCG = append(row.NDCG, c)
+	}
+	for _, k := range kVals {
+		row.NDCGLinear = append(row.NDCGLinear, fmtLinearNDCG(agg.NDCGLinear, k))
+	}
+	row.MAP = htmlCell{Val: fmt.Sprintf("%.4f", agg.MAP)}
+	row.MRR = htmlCell{Val: fmt.Sprintf("%.4f", agg.MRR)}
+	row.Bpref = htmlCell{Val: fmt.Sprintf("%.4f", agg.MBpref)}
+	row.Coverage = fmtRecorded(agg.JudgedCoverage)
+	return row
 }
 
 func htmlCorpusMatches(v *int64) string {
@@ -201,21 +233,8 @@ func buildViewModel(r *Report) htmlReport {
 			color := engineColors[i%len(engineColors)]
 			job.EngineLegend = append(job.EngineLegend, htmlLegendItem{Name: agg.EngineName, Color: color})
 
-			row := htmlAggRow{Engine: agg.EngineName}
-			for _, k := range kVals {
-				c := htmlCell{Val: fmt.Sprintf("%.4f", agg.NDCG[k])}
-				if sd := agg.NDCGStddev[k]; sd > 0 {
-					c.Stddev = fmt.Sprintf("%.4f", sd)
-				}
-				row.NDCG = append(row.NDCG, c)
-			}
-			for _, k := range kVals {
-				row.NDCGLinear = append(row.NDCGLinear, fmtLinearNDCG(agg.NDCGLinear, k))
-			}
-			row.MAP = htmlCell{Val: fmt.Sprintf("%.4f", agg.MAP)}
-			row.MRR = htmlCell{Val: fmt.Sprintf("%.4f", agg.MRR)}
-			row.Bpref = htmlCell{Val: fmt.Sprintf("%.4f", agg.MBpref)}
-			row.Coverage = fmtRecorded(agg.JudgedCoverage)
+			row := htmlQualityCells(agg, kVals)
+			row.Engine = agg.EngineName
 			row.Judged = fmt.Sprintf("%d/%d", agg.JudgedCount, agg.QueryCount)
 			row.Errors = fmt.Sprintf("%d/%d", agg.ErrorCount, agg.QueryCount)
 			job.Aggregated = append(job.Aggregated, row)
@@ -240,14 +259,16 @@ func buildViewModel(r *Report) htmlReport {
 		}
 
 		for _, sig := range jr.Significance {
+			w, p, adjusted := testCells(sig)
 			job.Significance = append(job.Significance, htmlSigRow{
 				EngineA: sig.EngineA, EngineB: sig.EngineB, Metric: sig.Metric,
-				W: fmt.Sprintf("%.1f", sig.W), P: fmt.Sprintf("%.4f", sig.P), AdjustedP: fmtRecorded(sig.AdjustedP),
-				Stars: sig.Stars, NS: sig.Stars == "",
+				MeanDifference: fmtMeanDifference(sig.MeanDifference),
+				W:              w, P: p, AdjustedP: adjusted,
+				Stars: sig.Stars, NS: sig.Stars == "" && !sig.Untestable, Untestable: sig.Untestable,
 			})
 		}
 
-		k := primaryK(kVals)
+		k := largestK(kVals)
 		for _, e := range jr.PerQuery {
 			status, isErr := "OK", false
 			if e.Error != "" {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/google/uuid"
 )
@@ -83,19 +84,24 @@ type CategoryReport struct {
 	Aggregated []AggregatedEntry
 }
 
-// PairwiseSignificance is the result of a Wilcoxon signed-rank test comparing
-// two engines on one metric across all judged queries in this job. Populated by
-// Generate() when ≥4 non-zero paired differences are available.
+// PairwiseSignificance compares two engines on one metric across all judged
+// queries in this job: a Wilcoxon signed-rank test and the mean difference.
 type PairwiseSignificance struct {
 	EngineA string  // reference engine (listed first in spec jobs[].engines)
 	EngineB string  // comparison engine
 	Metric  string  // e.g. "NDCG@10", "MAP", "MRR"
 	W       float64 // Wilcoxon W statistic
 	P       float64 // two-tailed p-value, unadjusted
+	// Untestable marks a pair with fewer than 4 non-zero differences. It keeps
+	// P = 1 so the metric's Holm family still counts it.
+	Untestable bool
 	// AdjustedP is Holm-corrected across the job's engine pairs on this
 	// metric; nil in reports written before the correction.
 	AdjustedP *float64
 	Stars     string // from AdjustedP: "**" p<0.01 | "*" p<0.05 | "" not significant
+	// MeanDifference is the mean of A − B with its 95% bootstrap interval;
+	// nil in reports written before it was recorded.
+	MeanDifference *metrics.Interval
 }
 
 type ReportConfig struct {

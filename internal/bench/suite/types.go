@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -64,8 +65,27 @@ func (eq *EngineQuery) UnmarshalYAML(value *yaml.Node) error {
 		eq.Query = value.Value
 		return nil
 	}
+	if err := checkEngineQueryKeys(value); err != nil {
+		return err
+	}
 	type plain EngineQuery
 	return value.Decode((*plain)(eq))
+}
+
+// checkEngineQueryKeys exists because Node.Decode does not inherit the
+// decoder's KnownFields.
+func checkEngineQueryKeys(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	known := []string{"query", "file", "template", "args", "params"}
+	for i := 0; i < len(value.Content); i += 2 {
+		key := value.Content[i]
+		if !slices.Contains(known, key.Value) {
+			return fmt.Errorf("line %d: field %s not found in an engine query", key.Line, key.Value)
+		}
+	}
+	return nil
 }
 
 // ResolveOptions addresses one engine's query inside a suite query and carries
