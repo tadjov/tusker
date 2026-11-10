@@ -6,8 +6,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/parquet-go/parquet-go"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 type CanonicalWriter interface {

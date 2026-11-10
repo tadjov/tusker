@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	apiserver "github.com/DjordjeVuckovic/tusker/internal/api/server"
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
-	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/labstack/echo/v4"
+	apiserver "github.com/tadjov/tusker/internal/api/server"
+	"github.com/tadjov/tusker/internal/apperr"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/types/operator"
+	dquery "github.com/tadjov/tusker/internal/types/query"
 )
 
 type stubSemanticSearcher struct{}

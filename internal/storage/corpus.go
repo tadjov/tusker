@@ -5,9 +5,9 @@ import (
 	"iter"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
 )
 
 // CorpusLoader builds an engine's corpus from scratch.

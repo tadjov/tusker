@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 type RawExecutor struct {

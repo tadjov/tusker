@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 type InMemIndexer struct {

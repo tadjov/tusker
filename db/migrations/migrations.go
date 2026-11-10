@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 //go:embed native paradedb tiger

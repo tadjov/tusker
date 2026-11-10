@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
-	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
-	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
+	dquery "github.com/tadjov/tusker/internal/types/query"
+	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
 const storedTag = "qwen3-embedding:0.6b@1024"

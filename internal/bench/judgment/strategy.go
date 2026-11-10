@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 // GradingQuery is the search intent the judge uses to grade.

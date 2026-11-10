@@ -15,10 +15,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/DjordjeVuckovic/tusker/internal/api/router"
-	server2 "github.com/DjordjeVuckovic/tusker/internal/api/server"
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/labstack/echo/v4"
+	"github.com/tadjov/tusker/internal/api/router"
+	server2 "github.com/tadjov/tusker/internal/api/server"
+	"github.com/tadjov/tusker/internal/embedding"
 )
 
 func main() {

@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/token"
-	queryoperator "github.com/DjordjeVuckovic/tusker/internal/types/operator"
-	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
-	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operator"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/textquerytype"
+	"github.com/tadjov/tusker/internal/api/dto"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/token"
+	queryoperator "github.com/tadjov/tusker/internal/types/operator"
+	dquery "github.com/tadjov/tusker/internal/types/query"
+	"github.com/tadjov/tusker/pkg/utils"
 )
 
 type Searcher struct {

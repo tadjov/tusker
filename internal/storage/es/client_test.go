@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
+	dquery "github.com/tadjov/tusker/internal/types/query"
 )
 
 func newTestClient(t *testing.T, config ClientConfig) *Client {

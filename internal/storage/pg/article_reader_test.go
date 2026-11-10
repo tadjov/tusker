@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
 )
 
 func TestArticleReader_GetByIDs_ReturnsEverySavedField(t *testing.T) {

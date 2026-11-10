@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
 const (

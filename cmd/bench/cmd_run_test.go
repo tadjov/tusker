@@ -6,14 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/judgment"
+	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/runner"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
 )
 
 func TestLoadRunJudgments_NoneConfiguredNeedsLatencyOnly(t *testing.T) {

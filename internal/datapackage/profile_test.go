@@ -11,7 +11,7 @@ import (
 	"github.com/dlclark/regexp2"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/datapackage"
 )
 
 // The profile's path patterns use lookaheads, which Go's RE2 cannot compile.

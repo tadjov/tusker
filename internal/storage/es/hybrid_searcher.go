@@ -7,14 +7,14 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
-	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/api/dto"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/storage"
+	dquery "github.com/tadjov/tusker/internal/types/query"
+	"github.com/tadjov/tusker/pkg/utils"
 )
 
 // hybridCandidateDepth bounds how many candidates each leg contributes to the fusion.

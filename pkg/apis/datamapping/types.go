@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
+	"github.com/tadjov/tusker/internal/types/language"
 )
 
 // DataMapper defines field mapping configuration for data imports

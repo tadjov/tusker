@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/tadjov/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/metrics"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/storage/es"
+	"github.com/tadjov/tusker/internal/storage/pg"
 )
 
 func TestGenerate_RecordsIndexProvenanceThroughTheWrittenReport(t *testing.T) {

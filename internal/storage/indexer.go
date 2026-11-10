@@ -3,9 +3,9 @@ package storage
 import (
 	"context"
 
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 type Indexer interface {

@@ -18,14 +18,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
 )
 
 const ccNewsLikeMapping = `kind: DataMapper

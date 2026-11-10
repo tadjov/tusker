@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/db/migrations"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5"
+	"github.com/tadjov/tusker/db/migrations"
+	"github.com/tadjov/tusker/internal/storage"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"

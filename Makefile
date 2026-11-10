@@ -2,7 +2,7 @@
 APP_NAME := tusker
 CMD_DIR := ./cmd
 BIN_DIR := ./bin
-PKG := github.com/DjordjeVuckovic/tusker
+PKG := github.com/tadjov/tusker
 MIGRATIONS_DIR := ./db/migrations
 PG_ENGINES := native paradedb tiger
 LOAD_ENGINES := $(PG_ENGINES) es

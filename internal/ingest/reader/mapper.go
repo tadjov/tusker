@@ -1,8 +1,8 @@
 package reader
 
 import (
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/pkg/apis/datamapping"
 )
 
 type Mapper interface {

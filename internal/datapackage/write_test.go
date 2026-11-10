@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
+	"github.com/tadjov/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/types/language"
 )
 
 func writeFile(t *testing.T, dir, rel, content string) {

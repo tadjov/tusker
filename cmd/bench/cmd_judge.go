@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"github.com/tadjov/tusker/internal/bench/judgment"
+	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/storage/factory"
+	"github.com/tadjov/tusker/internal/storage/pg"
 )
 
 type judgeFlags struct {

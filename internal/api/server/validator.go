@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/go-playground/validator/v10"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 type requestValidator struct {

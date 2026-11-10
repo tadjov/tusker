@@ -4,11 +4,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
-	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
+	"github.com/tadjov/tusker/internal/types/query"
 )
 
 func TestHybridSearcher_LexicalLegReadsTheQueryAsFreeText(t *testing.T) {

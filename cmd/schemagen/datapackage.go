@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
-	"github.com/DjordjeVuckovic/tusker/pkg/schema"
+	"github.com/tadjov/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/pkg/schema"
 )
 
 const dataPackageSchemaFile = "datapackage-v1.json"

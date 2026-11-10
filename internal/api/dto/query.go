@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/DjordjeVuckovic/tusker/internal/types/query"
+	"github.com/tadjov/tusker/internal/apperr"
+	"github.com/tadjov/tusker/internal/types/query"
 )
 
 // SearchRequest represents the base search request with unified structure

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 // searchExtensions are the extensions whose version changes what a search

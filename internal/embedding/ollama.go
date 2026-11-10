@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 type OllamaConfig func(client *OllamaClient)

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 type ArticleReader struct {

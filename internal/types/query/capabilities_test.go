@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
+	"github.com/tadjov/tusker/internal/types/operator"
 )
 
 var (

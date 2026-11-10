@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 // Fusion weights for the hybrid score. Equal weighting is the common default

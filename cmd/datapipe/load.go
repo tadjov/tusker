@@ -13,18 +13,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/cli"
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
-	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/spf13/cobra"
+	"github.com/tadjov/tusker/internal/cli"
+	"github.com/tadjov/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/ingest/reader"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/storage/factory"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
+	"github.com/tadjov/tusker/pkg/config/env"
 )
 
 const defaultLoadBatchSize = 5_000

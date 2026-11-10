@@ -3,7 +3,7 @@ package dto
 import (
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/query"
+	"github.com/tadjov/tusker/internal/types/query"
 )
 
 // HandlingFromPrefer reads the handling preference of RFC 7240 from the Prefer

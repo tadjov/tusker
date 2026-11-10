@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	openapi "github.com/DjordjeVuckovic/tusker/api/openapi-spec"
-	mw "github.com/DjordjeVuckovic/tusker/internal/api/middleware"
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/DjordjeVuckovic/tusker/pkg/server"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
+	openapi "github.com/tadjov/tusker/api/openapi-spec"
+	mw "github.com/tadjov/tusker/internal/api/middleware"
+	"github.com/tadjov/tusker/internal/apperr"
+	"github.com/tadjov/tusker/pkg/server"
 )
 
 const (

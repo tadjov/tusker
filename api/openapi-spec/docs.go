@@ -43,7 +43,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.SearchRequest"
                         }
                     },
                     {
@@ -57,7 +57,7 @@ const docTemplate = `{
                     "200": {
                         "description": "SearchStringQuery results with pagination metadata",
                         "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.SearchResponse"
                         }
                     },
                     "400": {
@@ -143,7 +143,7 @@ const docTemplate = `{
                     "200": {
                         "description": "SearchStringQuery results with pagination metadata",
                         "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.SearchResponse"
                         }
                     },
                     "400": {
@@ -207,7 +207,7 @@ const docTemplate = `{
                     "200": {
                         "description": "SearchStringQuery results with pagination metadata",
                         "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SemanticSearchResponse"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.SemanticSearchResponse"
                         }
                     },
                     "400": {
@@ -245,7 +245,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Supported query types and parameters",
                         "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.CapabilitiesResponse"
                         }
                     }
                 }
@@ -253,7 +253,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.Article": {
+        "github_com_tadjov_tusker_internal_api_dto.Article": {
             "type": "object",
             "properties": {
                 "content": {
@@ -269,7 +269,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "metadata": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.Metadata"
                 },
                 "publishedAt": {
                     "type": "string"
@@ -286,14 +286,14 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult": {
+        "github_com_tadjov_tusker_internal_api_dto.ArticleSearchResult": {
             "type": "object",
             "properties": {
                 "article": {
                     "description": "Embedded Article struct for search results",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Article"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.Article"
                         }
                     ]
                 },
@@ -307,7 +307,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.BooleanParams": {
+        "github_com_tadjov_tusker_internal_api_dto.BooleanParams": {
             "type": "object",
             "required": [
                 "expression"
@@ -322,18 +322,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse": {
+        "github_com_tadjov_tusker_internal_api_dto.CapabilitiesResponse": {
             "type": "object",
             "properties": {
                 "full_text": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_query.Capabilities"
                 },
                 "query_types": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.QueryTypes"
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.HybridParams": {
+        "github_com_tadjov_tusker_internal_api_dto.HybridParams": {
             "type": "object",
             "required": [
                 "query"
@@ -352,7 +352,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.MatchParams": {
+        "github_com_tadjov_tusker_internal_api_dto.MatchParams": {
             "type": "object",
             "required": [
                 "field",
@@ -377,7 +377,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata": {
+        "github_com_tadjov_tusker_internal_api_dto.Metadata": {
             "type": "object",
             "properties": {
                 "authors": {
@@ -414,7 +414,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams": {
+        "github_com_tadjov_tusker_internal_api_dto.MultiMatchParams": {
             "type": "object",
             "required": [
                 "fields",
@@ -441,7 +441,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.PhraseParams": {
+        "github_com_tadjov_tusker_internal_api_dto.PhraseParams": {
             "type": "object",
             "required": [
                 "fields",
@@ -469,7 +469,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes": {
+        "github_com_tadjov_tusker_internal_api_dto.QueryTypes": {
             "type": "object",
             "properties": {
                 "boolean": {
@@ -495,34 +495,34 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper": {
+        "github_com_tadjov_tusker_internal_api_dto.QueryWrapper": {
             "type": "object",
             "properties": {
                 "boolean": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.BooleanParams"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.BooleanParams"
                 },
                 "hybrid": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.HybridParams"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.HybridParams"
                 },
                 "match": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.MatchParams"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.MatchParams"
                 },
                 "multi_match": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.MultiMatchParams"
                 },
                 "phrase": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.PhraseParams"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.PhraseParams"
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest": {
+        "github_com_tadjov_tusker_internal_api_dto.SearchRequest": {
             "type": "object",
             "properties": {
                 "cursor": {
                     "type": "string"
                 },
                 "query": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.QueryWrapper"
                 },
                 "size": {
                     "type": "integer",
@@ -530,14 +530,14 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse": {
+        "github_com_tadjov_tusker_internal_api_dto.SearchResponse": {
             "type": "object",
             "properties": {
                 "effective": {
                     "description": "Effective is the contract the search ran under, with every omitted\nparameter filled by the engine.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Effective"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_query.Effective"
                         }
                     ]
                 },
@@ -547,14 +547,14 @@ const docTemplate = `{
                 "hits": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult"
+                        "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.ArticleSearchResult"
                     }
                 },
                 "ignored": {
                     "description": "Ignored lists the stated parameters the engine did not honour.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored"
+                        "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_query.Ignored"
                     }
                 },
                 "max_score": {
@@ -571,7 +571,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.SemanticSearchResponse": {
+        "github_com_tadjov_tusker_internal_api_dto.SemanticSearchResponse": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -580,7 +580,7 @@ const docTemplate = `{
                 "hits": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Article"
+                        "$ref": "#/definitions/github_com_tadjov_tusker_internal_api_dto.Article"
                     }
                 },
                 "next_cursor": {
@@ -588,7 +588,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_types_language.Code": {
+        "github_com_tadjov_tusker_internal_types_language.Code": {
             "type": "string",
             "enum": [
                 "eng"
@@ -597,7 +597,7 @@ const docTemplate = `{
                 "English"
             ]
         },
-        "github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator": {
+        "github_com_tadjov_tusker_internal_types_operator.Operator": {
             "type": "string",
             "enum": [
                 "AND",
@@ -608,7 +608,7 @@ const docTemplate = `{
                 "Or"
             ]
         },
-        "github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities": {
+        "github_com_tadjov_tusker_internal_types_query.Capabilities": {
             "type": "object",
             "properties": {
                 "boosts": {
@@ -618,7 +618,7 @@ const docTemplate = `{
                     "description": "DefaultOperator combines terms when a request names no operator.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator"
+                            "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_operator.Operator"
                         }
                     ]
                 },
@@ -629,7 +629,7 @@ const docTemplate = `{
                     "description": "Fields are the fields the engine can match apart from every other field.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field"
+                        "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_query.Field"
                     }
                 },
                 "fuzziness": {
@@ -640,24 +640,24 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_types_query.Effective": {
+        "github_com_tadjov_tusker_internal_types_query.Effective": {
             "type": "object",
             "properties": {
                 "fields": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field"
+                        "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_query.Field"
                     }
                 },
                 "language": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_language.Code"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_language.Code"
                 },
                 "operator": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator"
+                    "$ref": "#/definitions/github_com_tadjov_tusker_internal_types_operator.Operator"
                 }
             }
         },
-        "github_com_DjordjeVuckovic_tusker_internal_types_query.Field": {
+        "github_com_tadjov_tusker_internal_types_query.Field": {
             "type": "string",
             "enum": [
                 "title",
@@ -670,7 +670,7 @@ const docTemplate = `{
                 "FieldContent"
             ]
         },
-        "github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored": {
+        "github_com_tadjov_tusker_internal_types_query.Ignored": {
             "type": "object",
             "properties": {
                 "engine": {

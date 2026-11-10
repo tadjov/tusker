@@ -3,10 +3,10 @@ package main
 import (
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/runner"
 )
 
 // Two jobs sharing a suite must produce ONE pool entry per query_id, not one

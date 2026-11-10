@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
-	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/storage/factory"
+	"github.com/tadjov/tusker/pkg/config/env"
 )
 
 type AppConfig struct {

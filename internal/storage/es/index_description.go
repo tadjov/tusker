@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 // IndexDescription is how an Elasticsearch engine had its corpus indexed, read

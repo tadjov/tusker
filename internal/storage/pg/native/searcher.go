@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
-	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
-	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
-	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tadjov/tusker/internal/api/dto"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/storage/pg"
+	"github.com/tadjov/tusker/internal/types/operator"
+	dquery "github.com/tadjov/tusker/internal/types/query"
+	"github.com/tadjov/tusker/pkg/utils"
 )
 
 type Searcher struct {

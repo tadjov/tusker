@@ -7,12 +7,12 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/spf13/cobra"
+	"github.com/tadjov/tusker/internal/bench/judgment"
+	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/bench/report"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
 )
 
 // newReportCmd exposes "bench report" as a top-level shortcut for the common

@@ -3,7 +3,7 @@ package judgment
 import (
 	"context"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
 // ManualStrategy emits GradeUnjudged (-1) for every doc. Useful when a human

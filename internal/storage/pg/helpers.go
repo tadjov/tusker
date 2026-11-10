@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/jackc/pgx/v5"
+	"github.com/tadjov/tusker/internal/api/dto"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 // ArticleColumns must stay in scanArticle's scan order.

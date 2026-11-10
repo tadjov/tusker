@@ -3,8 +3,8 @@ package dialect
 import (
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
+	"github.com/tadjov/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/suite"
 )
 
 // Literal is the tusker API: a request descriptor sent as written.

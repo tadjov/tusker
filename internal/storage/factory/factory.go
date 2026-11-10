@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/in_mem"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg/native"
-	"github.com/DjordjeVuckovic/tusker/pkg/server"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/storage/es"
+	"github.com/tadjov/tusker/internal/storage/in_mem"
+	"github.com/tadjov/tusker/internal/storage/pg"
+	"github.com/tadjov/tusker/internal/storage/pg/native"
+	"github.com/tadjov/tusker/pkg/server"
 )
 
 // TODO: take the pool as a parameter in the indexer and reader constructors too, as the searchers do, instead of opening one each
