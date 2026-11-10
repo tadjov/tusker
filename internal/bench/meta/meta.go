@@ -29,7 +29,7 @@ type Meta struct {
 	Engines           []string           `yaml:"engines,omitempty" json:"engines,omitempty"`
 	DroppedExecutions []DroppedExecution `yaml:"dropped_executions,omitempty" json:"dropped_executions,omitempty"`
 
-	// Judgment-only fields.
+	// Judgment fields; a report also records its pool in PoolRunID.
 	Judge          *Judge `yaml:"judge,omitempty" json:"judge,omitempty"`
 	PoolRef        string `yaml:"pool_ref,omitempty" json:"pool_ref,omitempty"`
 	PoolRunID      string `yaml:"pool_run_id,omitempty" json:"pool_run_id,omitempty"`
@@ -45,7 +45,8 @@ type Meta struct {
 	LegacyPromptVersion string `yaml:"judge_prompt_version,omitempty" json:"judge_prompt_version,omitempty"`
 
 	// Report-only fields.
-	Sources *Sources `yaml:"sources,omitempty" json:"sources,omitempty"`
+	JudgmentsRunID string   `yaml:"judgments_run_id,omitempty" json:"judgments_run_id,omitempty"`
+	Sources        *Sources `yaml:"sources,omitempty" json:"sources,omitempty"`
 }
 
 // DroppedExecution is a (query, engine) pair a pool written with
@@ -108,11 +109,11 @@ func (m *Meta) Normalize() {
 // Sources is embedded in a Report's meta to attest which on-disk artifacts
 // were consumed to compute the metrics in that report.
 type Sources struct {
-	Spec       string `yaml:"spec,omitempty" json:"spec,omitempty"`
-	Suite      string `yaml:"suite,omitempty" json:"suite,omitempty"`
-	Pool       string `yaml:"pool,omitempty" json:"pool,omitempty"`
-	Judgments  string `yaml:"judgments,omitempty" json:"judgments,omitempty"`
-	JudgesPath string `yaml:"judgments_path,omitempty" json:"judgments_path,omitempty"`
+	Spec       string   `yaml:"spec,omitempty" json:"spec,omitempty"`
+	Suites     []string `yaml:"suites,omitempty" json:"suites,omitempty"`
+	Pool       string   `yaml:"pool,omitempty" json:"pool,omitempty"`
+	Judgments  string   `yaml:"judgments,omitempty" json:"judgments,omitempty"`
+	JudgesPath string   `yaml:"judgments_path,omitempty" json:"judgments_path,omitempty"`
 }
 
 // New returns a freshly-stamped Meta with tool string + ISO timestamp + run id.

@@ -95,7 +95,7 @@ type htmlReport struct {
 }
 
 type htmlSources struct {
-	Spec, Suite, Pool, Judgments string
+	Spec, Suites, Pool, Judgments string
 }
 
 type htmlLegendItem struct {
@@ -181,7 +181,7 @@ func buildViewModel(r *Report) htmlReport {
 	if s := r.Provenance.Sources; s != nil {
 		vm.Sources = &htmlSources{
 			Spec:      repoRelPath(s.Spec),
-			Suite:     repoRelPath(s.Suite),
+			Suites:    repoRelPaths(s.Suites),
 			Pool:      repoRelPath(s.Pool),
 			Judgments: repoRelPath(s.Judgments),
 		}

@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,4 +51,40 @@ func TestInit_ScaffoldedSpecResolvesItsSuite(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Equal scores tie in plan order unless id breaks them, so a run could rank
+// docs the pool never saw.
+func TestInit_ScaffoldedPostgresQueriesBreakScoreTiesByID(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	prevRoot := trackRoot
+	trackRoot = ""
+	t.Cleanup(func() { trackRoot = prevRoot })
+	cmd := newInitCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetArgs([]string{"cc-news/fts"})
+	require.NoError(t, cmd.Execute())
+	bs, err := spec.LoadFromFile(filepath.Join(cwd, "cc-news/fts", "spec.yaml"))
+	require.NoError(t, err)
+	suites, err := runner.LoadSuites(bs)
+	require.NoError(t, err)
+
+	tieBreak := regexp.MustCompile(`(?is)ORDER BY.*\bDESC\s*,\s*id\b`)
+	checked := 0
+	for _, job := range bs.Jobs {
+		ls := suites[job.Suite]
+		for _, engineName := range job.Engines {
+			if bs.Engines[engineName].Type != spec.EnginePostgres {
+				continue
+			}
+			for _, q := range ls.Suite.Queries {
+				resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{Engine: engineName, Registry: ls.Registry, SuiteDir: ls.Dir})
+				require.NoError(t, err)
+				assert.Regexp(t, tieBreak, resolved.Query, "query %s engine %s", q.ID, engineName)
+				checked++
+			}
+		}
+	}
+	require.NotZero(t, checked, "the scaffold has a postgres query")
 }

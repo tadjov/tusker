@@ -50,7 +50,6 @@ type Inputs struct {
 	TrackArg   string // --track value OR positional arg (already merged by caller)
 	TrackRoot  string // --track-root / BENCH_TRACK_ROOT; base for relative args (default: cwd)
 	SpecPath   string // --spec override
-	SuitePath  string // --suite override
 	PoolPath   string // --pool override
 	OutputPath string // --output override
 	Judgments  string // --judgments value: "lexical" (strategy name) | path/to.yaml | empty
@@ -58,10 +57,9 @@ type Inputs struct {
 
 // Track holds absolute paths derived from a track folder + overrides.
 type Track struct {
-	Root  string // absolute path to the track folder
-	Spec  string
-	Suite string
-	Pool  string
+	Root string // absolute path to the track folder
+	Spec string
+	Pool string
 
 	name       string // root-relative id, e.g. "fts_quality" or "tracks/news/fts"
 	trecDir    string
@@ -76,7 +74,6 @@ func Resolve(in Inputs) (*Track, error) {
 	}
 	t := newTrack(root, name)
 	t.Spec = firstNonEmpty(in.SpecPath, t.Spec)
-	t.Suite = firstNonEmpty(in.SuitePath, t.Suite)
 	t.Pool = firstNonEmpty(in.PoolPath, t.Pool)
 	return t, nil
 }
@@ -119,7 +116,6 @@ func newTrack(root, name string) *Track {
 		reportsDir: filepath.Join(root, reportsDir),
 	}
 	t.Spec = filepath.Join(root, specFile)
-	t.Suite = filepath.Join(root, suiteFile)
 	t.Pool = filepath.Join(t.trecDir, poolFile)
 	return t
 }

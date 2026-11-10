@@ -46,7 +46,6 @@ func TestResolve_RelativePathFromCWD(t *testing.T) {
 	canonTrack := canonical(t, track)
 	assert.Equal(t, canonTrack, tr.Root)
 	assert.Equal(t, filepath.Join(canonTrack, "spec.yaml"), tr.Spec)
-	assert.Equal(t, filepath.Join(canonTrack, "suite.yaml"), tr.Suite)
 	assert.Equal(t, filepath.Join(canonTrack, "trec", "pool.yaml"), tr.Pool)
 	assert.Equal(t, "tracks/news/fts", tr.Name(), "name is the path you typed")
 }
@@ -111,8 +110,6 @@ func TestResolve_ExplicitFlagsOverride(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/abs/elsewhere/spec.yaml", tr.Spec)
 	assert.Equal(t, "/abs/elsewhere/pool.yaml", tr.Pool)
-	// Suite NOT overridden falls back to the track convention.
-	assert.Equal(t, filepath.Join(canonical(t, track), "suite.yaml"), tr.Suite)
 }
 
 func TestResolve_UnknownTrackErrors(t *testing.T) {

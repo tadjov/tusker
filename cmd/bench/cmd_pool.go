@@ -155,6 +155,7 @@ func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string
 
 	var order []string                                       // first-seen query order
 	byQuery := make(map[string]map[string]*engine.Execution) // query_id → engine → execution
+	digests := make(map[string]map[string]string)
 	jobSeen := make(map[string]struct{})
 	var jobNames []string
 
@@ -168,6 +169,7 @@ func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string
 			if !ok {
 				execs = make(map[string]*engine.Execution)
 				byQuery[qID] = execs
+				digests[qID] = make(map[string]string)
 				order = append(order, qID)
 			}
 			engResults := jr.Results[qID]
@@ -186,6 +188,7 @@ func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string
 					RankedDocIDs:  qr.RankedDocIDs,
 					CorpusMatches: qr.CorpusMatches,
 				}
+				digests[qID][engName] = qr.RequestDigest
 			}
 		}
 	}
@@ -193,10 +196,11 @@ func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string
 	pf.SuiteName = strings.Join(jobNames, ",")
 	for _, qID := range order {
 		pf.Queries = append(pf.Queries, pool.PoolEntry{
-			QueryID:   qID,
-			QueryDesc: descs[qID],
-			Category:  cats[qID],
-			Docs:      pool.PoolResults(byQuery[qID], depth),
+			QueryID:        qID,
+			QueryDesc:      descs[qID],
+			Category:       cats[qID],
+			Docs:           pool.PoolResults(byQuery[qID], depth),
+			RequestDigests: digests[qID],
 		})
 	}
 	return pf

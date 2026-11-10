@@ -18,7 +18,7 @@ templates:
       ORDER BY ts_rank(
         to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')),
         plainto_tsquery('english', $1)
-      ) DESC
+      ) DESC, id
       LIMIT $2::int
 
   # An elasticsearch search template is Mustache over the Query DSL: quote string

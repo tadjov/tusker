@@ -9,6 +9,7 @@ type QueryResult struct {
 	QueryID       string
 	Category      string
 	EngineName    string
+	RequestDigest string
 	Scores        metrics.ScoreSet
 	RankedDocIDs  []uuid.UUID
 	ReturnedCount int

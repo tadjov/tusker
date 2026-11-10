@@ -336,8 +336,8 @@ func showReport(w io.Writer, rpt *report.Report) {
 		if p.Sources.Spec != "" {
 			fmt.Fprintf(w, "  spec:      %s\n", p.Sources.Spec)
 		}
-		if p.Sources.Suite != "" {
-			fmt.Fprintf(w, "  suite:     %s\n", p.Sources.Suite)
+		if len(p.Sources.Suites) > 0 {
+			fmt.Fprintf(w, "  suites:    %s\n", strings.Join(p.Sources.Suites, ", "))
 		}
 		if p.Sources.Pool != "" {
 			fmt.Fprintf(w, "  pool:      %s\n", p.Sources.Pool)

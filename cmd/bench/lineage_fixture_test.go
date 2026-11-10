@@ -38,8 +38,12 @@ func fakeCluster(t *testing.T, indexes map[string]*fakeIndex) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-		if len(parts) != 2 {
+		if len(parts) < 2 {
 			http.NotFound(w, r)
+			return
+		}
+		if parts[0] == "_scripts" && r.Method == http.MethodPut {
+			_, _ = io.WriteString(w, `{"acknowledged": true}`)
 			return
 		}
 		index, ok := indexes[parts[0]]
@@ -47,10 +51,10 @@ func fakeCluster(t *testing.T, indexes map[string]*fakeIndex) string {
 			http.NotFound(w, r)
 			return
 		}
-		switch parts[1] {
+		switch strings.Join(parts[1:], "/") {
 		case "_count":
 			_, _ = fmt.Fprintf(w, `{"count": %d}`, index.count)
-		case "_search":
+		case "_search", "_search/template":
 			body, _ := io.ReadAll(r.Body)
 			for queryID, ids := range index.ranked {
 				if !bytes.Contains(body, []byte(`"`+queryID+`"`)) {
@@ -155,6 +159,36 @@ func (tr lineageTrack) writePool(t *testing.T, runID string, docs map[string][]u
 		pf.Queries = append(pf.Queries, entry)
 	}
 	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))
+}
+
+// pool runs bench pool over the track and returns the pool it wrote.
+func (tr lineageTrack) pool(t *testing.T, args ...string) *pool.PoolFile {
+	t.Helper()
+	_, err := execute(t, newPoolCmd(), append([]string{tr.dir}, args...)...)
+	require.NoError(t, err)
+	pf, err := pool.ReadPoolFile(tr.poolPath())
+	require.NoError(t, err)
+	return pf
+}
+
+func (tr lineageTrack) poolRunID(t *testing.T) string {
+	t.Helper()
+	pf, err := pool.ReadPoolFile(tr.poolPath())
+	require.NoError(t, err)
+	return pf.Meta.RunID
+}
+
+// judgeEveryPooledDoc grades every doc of pf with grade.
+func (tr lineageTrack) judgeEveryPooledDoc(t *testing.T, pf *pool.PoolFile, grade int) {
+	t.Helper()
+	grades := make(map[string]map[uuid.UUID]int)
+	for _, entry := range pf.Queries {
+		grades[entry.QueryID] = make(map[uuid.UUID]int)
+		for _, doc := range entry.Docs {
+			grades[entry.QueryID][doc.DocID] = grade
+		}
+	}
+	tr.writeJudgments(t, pf.Meta.RunID, grades)
 }
 
 // writeJudgments grades every listed doc against the pool with poolRunID. A

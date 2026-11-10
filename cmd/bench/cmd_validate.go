@@ -19,10 +19,9 @@ import (
 )
 
 type validateFlags struct {
-	trackArg  string
-	specPath  string
-	suitePath string
-	failFast  bool
+	trackArg string
+	specPath string
+	failFast bool
 }
 
 func newValidateCmd() *cobra.Command {
@@ -49,7 +48,6 @@ Returns non-zero exit if any query fails — wire it into CI.`,
 	}
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.specPath, "spec", "", "Override spec.yaml path")
-	cmd.Flags().StringVar(&f.suitePath, "suite", "", "Override suite.yaml path (all jobs share it)")
 	cmd.Flags().BoolVar(&f.failFast, "fail-fast", false, "Stop at first failure")
 	return cmd
 }
@@ -64,7 +62,6 @@ type validateRow struct {
 func executeValidate(cmd *cobra.Command, f validateFlags, args []string) error {
 	in := trackInputs(f.trackArg, args)
 	in.SpecPath = f.specPath
-	in.SuitePath = f.suitePath
 	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return validateTrack(cmd, f, tr)
 	})

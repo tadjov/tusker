@@ -327,6 +327,8 @@ For `semantic`/`hybrid` kinds it first requires an embedder (fails fast if `EMBE
 
 Runs all queries in parallel, gathers the top-N results per engine, deduplicates by doc ID, and writes `trec/pool.yaml`. Default depth is from `spec.defaults.pool_depth`.
 
+Each pool entry records, under `request_digests`, a sha256 per engine of the request that engine was sent: the statement or body, its args, its params (the query vector included) and a stored template's source. The stored template's id is left out. Warmup, iterations, timeout and K are not part of a request, so changing them needs no re-pool.
+
 ### `bench judge [<name>] --strategy <S>`
 
 Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: `trec/annotations.<S>.yaml`, with `graded_count` and `unjudged_count` in its meta block. The command writes the file and then exits non-zero when any pooled doc is left unjudged (`manual` excepted).
@@ -347,7 +349,9 @@ The report is always written. A run fails, exits non-zero and leaves `reports/la
 - it measured a (query, engine) cell the pool dropped (`bench pool --allow-partial`)
 - it ran a query the pool holds no entry for
 - it measured an engine the pool never saw
+- a (query, engine) cell's request differs from the one the pool recorded, or the pool records none, as after editing a template, a declared param or a query's params; the error names the cells (`q07/pg`). `--latency-only` skips this check
 - the judgments leave pooled docs unjudged
+- an engine ranks a doc with no grade within the pool depth (`meta.pool_depth`). With requests unchanged this happens only when the corpus changed or a rank tie broke differently; the error counts the docs and names the cells
 
 `latest.json` also stays put, with exit 0, unless the run took every spec job at the spec's warmup, iterations and K, from the track's own `spec.yaml` and `spec.defaults.judgments`. Every reason a run is not the track's result is listed under `settings.incomplete` in its report.
 
@@ -356,15 +360,15 @@ Judgments resolution order:
 2. `spec.defaults.judgments` (per-track default; a relative path starts at the spec file's folder, like the spec's suite paths)
 3. None → the run fails before measuring anything
 
-A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count.
+A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count. `provenance.pool_run_id` and `provenance.judgments_run_id` name the pool and the judgments it scored against.
 
 Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)
-- `--k 3,5,10` — NDCG/P cut-off values
+- `--k 3,5,10` — NDCG/P cut-off values; each must be positive, distinct and no deeper than the pool's `meta.pool_depth`, or the run fails before measuring. The spec loader holds `metrics.k_values` to the same rule against `defaults.pool_depth` when that is set
 - `--warmup N`, `--iterations N` — override spec settings
 - `--latency-only` — measure latency without judgments
 
-Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run flag for it.
+Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run flag for it. Every ranking is cut at the pool's `meta.pool_depth` before it is scored and stored, so MAP and bpref count only docs the pool could have judged, and the run files `bench export --format run` writes hold the rankings bench scored. A `--latency-only` run keeps the rankings whole.
 
 Elapsed time is printed after the results table.
 
@@ -541,4 +545,4 @@ bench run '*'                                     # the whole dataset
 When a path misses, the error names what it tried and, if a folder of that name
 sits deeper, points at it — the usual sign the root is unset or too shallow.
 
-Grouping is **explicit**: only a glob expands. A single path always means exactly one track — a directory of tracks never implicitly becomes a group. Glob mode forbids the single-track path overrides (`--spec`/`--suite`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first.
+Grouping is **explicit**: only a glob expands. A single path always means exactly one track — a directory of tracks never implicitly becomes a group. Glob mode forbids the single-track path overrides (`--spec`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first.

@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const judgedPoolRunID = "2026-10-17T10-00-00-pool-aaaaaa"
-
 // judgedTrack is a track whose judgments grade every doc in its pool, served by
 // engines that answer every query unless failing says otherwise.
 func judgedTrack(t *testing.T, failing map[string]bool) lineageTrack {
@@ -27,16 +25,17 @@ func judgedTrack(t *testing.T, failing map[string]bool) lineageTrack {
 func judgedTrackDocs(t *testing.T, failing map[string]bool) (tr lineageTrack, relevant, other uuid.UUID) {
 	t.Helper()
 	relevant, other = uuid.New(), uuid.New()
+	b := &fakeIndex{count: 10, ranked: map[string][]uuid.UUID{"q1": {other, relevant}, "q2": {other}}}
 	cluster := fakeCluster(t, map[string]*fakeIndex{
 		"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {relevant, other}, "q2": {relevant}}},
-		"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {other, relevant}, "q2": {other}}, failing: failing},
+		"b": b,
 	})
 	tr = newLineageTrack(t, cluster)
-	tr.writePool(t, judgedPoolRunID, map[string][]uuid.UUID{"q1": {relevant, other}, "q2": {relevant, other}})
-	tr.writeJudgments(t, judgedPoolRunID, map[string]map[uuid.UUID]int{
+	tr.writeJudgments(t, tr.pool(t).Meta.RunID, map[string]map[uuid.UUID]int{
 		"q1": {relevant: 3, other: 0},
 		"q2": {relevant: 2, other: 0},
 	})
+	b.failing = failing
 	return tr, relevant, other
 }
 
@@ -134,7 +133,7 @@ func TestRun_FailedRunWritesTheReportButLeavesLatest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tr, relevant, other := judgedTrackDocs(t, tt.failing)
 			if tt.regrade != nil {
-				tr.writeJudgments(t, judgedPoolRunID, tt.regrade(relevant, other))
+				tr.writeJudgments(t, tr.poolRunID(t), tt.regrade(relevant, other))
 			}
 			before := seedLatest(t, tr)
 
@@ -261,6 +260,8 @@ func TestRun_PartialPoolFailsTheCellsItDropped(t *testing.T) {
 			}
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "q2/b")
+			assert.Contains(t, err.Error(), "re-pool without --allow-partial")
+			assert.NotContains(t, err.Error(), "re-pool and re-judge", "the dropped cell is reported once, with its own cause")
 			assertLatestUnchanged(t, tr, before)
 		})
 	}
@@ -362,10 +363,13 @@ func copyFile(t *testing.T, from, to string) string {
 // The judge's own count misses a doc pooled after it last wrote, so the report
 // records what the run itself found against the pool.
 func TestRun_ReportRecordsTheUnjudgedDocsItFound(t *testing.T) {
-	tr, relevant, other := judgedTrackDocs(t, nil)
-	tr.writePool(t, judgedPoolRunID, map[string][]uuid.UUID{"q1": {relevant, other, uuid.New()}, "q2": {relevant, other}})
+	tr := judgedTrack(t, nil)
+	pf, err := pool.ReadPoolFile(tr.poolPath())
+	require.NoError(t, err)
+	pf.Queries[0].Docs = append(pf.Queries[0].Docs, pool.PooledDoc{DocID: uuid.New(), Sources: []string{"a"}})
+	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))
 
-	_, err := execute(t, newRunCmd(), tr.dir)
+	_, err = execute(t, newRunCmd(), tr.dir)
 	require.Error(t, err)
 
 	reports := tr.reports(t)

@@ -124,6 +124,9 @@ func validate(s *BenchSpec) error {
 	if len(s.Metrics.KValues) == 0 {
 		s.Metrics.KValues = []int{3, 5, 10}
 	}
+	if err := CheckKValues(s.Metrics.KValues, s.Defaults.PoolDepth); err != nil {
+		return fmt.Errorf("metrics.k_values: %w", err)
+	}
 	if s.Metrics.RelevanceThreshold <= 0 {
 		s.Metrics.RelevanceThreshold = 1
 	}

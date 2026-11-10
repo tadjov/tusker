@@ -199,7 +199,7 @@ func envOrFlag(envKey, flagVal string) string {
 
 // trackInputs builds the resolution inputs shared by every subcommand: the
 // track from a flag or positional arg, resolved against the active track root.
-// Callers layer their own --spec/--suite/--pool/--output overrides on top.
+// Callers layer their own --spec/--pool/--output overrides on top.
 func trackInputs(flag string, args []string) trackctx.Inputs {
 	return trackctx.Inputs{TrackArg: trackArg(flag, args), TrackRoot: trackRoot}
 }
@@ -227,7 +227,7 @@ func trackArg(flag string, args []string) string {
 
 // forEachTrack runs fn once per track. A glob arg (news/*) fans out across every
 // matching track; anything else is a single track. Grouping is explicit — only a
-// glob expands. Path overrides (--spec/--suite/--pool/--output) target one track,
+// glob expands. Path overrides (--spec/--pool/--output) target one track,
 // so combining them with a glob is rejected. In group mode a per-track failure is
 // logged and the loop continues; the aggregate error names every track that failed.
 // An interrupt stops the loop at the track it cut short.
@@ -240,8 +240,8 @@ func forEachTrack(ctx context.Context, w io.Writer, in trackctx.Inputs, fn func(
 		return fn(tr)
 	}
 
-	if in.SpecPath != "" || in.SuitePath != "" || in.PoolPath != "" || in.OutputPath != "" {
-		return fmt.Errorf("--spec/--suite/--pool/--output cannot be combined with a glob pattern %q", in.TrackArg)
+	if in.SpecPath != "" || in.PoolPath != "" || in.OutputPath != "" {
+		return fmt.Errorf("--spec/--pool/--output cannot be combined with a glob pattern %q", in.TrackArg)
 	}
 	tracks, err := trackctx.ResolveGlob(in.TrackArg, in.TrackRoot)
 	if err != nil {

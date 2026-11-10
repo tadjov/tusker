@@ -21,6 +21,8 @@ type PoolEntry struct {
 	QueryDesc string      `yaml:"query_desc"`
 	Category  string      `yaml:"category,omitempty"`
 	Docs      []PooledDoc `yaml:"docs"`
+	// RequestDigests hold, by engine, the digest of the request it was sent.
+	RequestDigests map[string]string `yaml:"request_digests,omitempty"`
 }
 
 type PooledDoc struct {
