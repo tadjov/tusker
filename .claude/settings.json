@@ -6,6 +6,12 @@
       "Bash(go fmt:*)",
       "Bash(go mod tidy)",
       "Bash(go vet :*)"
+    ],
+    "deny": [
+      "Bash(curl:*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
     ]
   },
   "env": {
