@@ -161,14 +161,9 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 					outPath, existing.Judge())
 			}
 		}
-		jf := buildManualJudgments(pf, existing)
-		judge := judgment.NewManualStrategy().Describe()
-		jf.Meta = meta.New("judge")
-		jf.Meta.Judge = &judge
-		jf.Meta.PoolRef = poolPath
-		jf.Meta.PoolRunID = pf.Meta.RunID
-		if err := judgment.WriteFile(jf, outPath); err != nil {
-			return fmt.Errorf("write judgments: %w", err)
+		jf, err := manualJudgments{pool: pf, poolPath: poolPath, path: outPath}.write(existing)
+		if err != nil {
+			return err
 		}
 		printDone(cmd.OutOrStdout(), fmt.Sprintf("Manual template written: %s  (queries=%d)", outPath, len(jf.Queries)))
 		return nil
@@ -383,7 +378,7 @@ func buildVectorStore(ctx context.Context, f judgeFlags, tr *trackctx.Track) (st
 func openArticleReader(cmd *cobra.Command, pgConn string) (storage.Reader, error) {
 	conn := envOrFlag("PG_CONNECTION_STRING", pgConn)
 	if conn == "" {
-		return nil, fmt.Errorf("judge requires --pg or PG_CONNECTION_STRING for article enrichment")
+		return nil, fmt.Errorf("reading pooled articles requires --pg or PG_CONNECTION_STRING")
 	}
 	reader, err := factory.NewReader(cmd.Context(), factory.StorageConfig{
 		Type: storage.PG,
@@ -425,6 +420,28 @@ func buildManualJudgments(pf *pool.PoolFile, existing *judgment.File) *judgment.
 		}
 	}
 	return jf
+}
+
+// manualJudgments is a hand-grading file bound to the pool it was built from.
+type manualJudgments struct {
+	pool     *pool.PoolFile
+	poolPath string
+	path     string
+}
+
+// write merges existing (nil starts over) with a -1 placeholder for every
+// pooled doc it lacks, binds the result to the pool and writes it.
+func (m manualJudgments) write(existing *judgment.File) (*judgment.File, error) {
+	jf := buildManualJudgments(m.pool, existing)
+	judge := judgment.NewManualStrategy().Describe()
+	jf.Meta = meta.New("judge")
+	jf.Meta.Judge = &judge
+	jf.Meta.PoolRef = m.poolPath
+	jf.Meta.PoolRunID = m.pool.Meta.RunID
+	if err := judgment.WriteFile(jf, m.path); err != nil {
+		return nil, fmt.Errorf("write manual judgments: %w", err)
+	}
+	return jf, nil
 }
 
 // requireJudged fails when a pooled doc has no grade: bench run would score it

@@ -67,6 +67,7 @@ func main() {
 		newRunCmd(),
 		newPoolCmd(),
 		newJudgeCmd(),
+		newGradeCmd(),
 		newValidateCmd(),
 		newInitCmd(),
 		newShowCmd(),

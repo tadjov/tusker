@@ -340,6 +340,18 @@ Key flags:
 - `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged. A query with no usable terms still fails the run
 - `--force` — `manual` only: rewrite the placeholders from scratch. Without it, `manual` keeps every existing hand grade, adds `-1` placeholders for new pool docs, and refuses a file another judge wrote
 
+### `bench grade [<name>] --against <S|path> [--sample N] [--seed S] [--pg <dsn>] [--report]`
+
+Grades pool pairs by hand into `trec/annotations.manual.yaml` and reports how well the `--against` judge agrees. It creates or merges the manual file as `bench judge --strategy manual` does, so hand grades are kept per (query, doc) across re-pools, and it refuses an `--against` file graded against another pool.
+
+Each screen shows progress, the query from the pool, and the article's title, publisher, date, description and first 800 characters of content (from Postgres, `--pg` / `PG_CONNECTION_STRING`). The judge's grade and the engines that retrieved the doc are not shown. Answer `0`–`3`, `s` to skip, `u` to undo the last grade, `q` to quit. Each grade is saved before the next pair shows, so rerunning the command resumes.
+
+- `--sample N` — walk N pairs drawn from the pairs the judge graded, an equal share per judge grade; a grade with fewer pairs than its share gives the shortfall to the others. Without it, every ungraded pool pair is walked
+- `--seed S` — fixes the sample and the order of docs within each query (default 1). The same pool, judge file and seed give the same walk every session; pairs already graded by hand are skipped
+- `--report` — print the agreement instead of starting a session; needs no `--pg`
+
+A session ends with progress only (`graded 37 of 150; rerun to continue`), never the agreement: seeing the judge's grades for the pairs just graded would calibrate the rest of the sample. Run `--report` once the walk is graded. The agreement covers the pairs graded in both files: their count, the exact-agreement rate, quadratic-weighted Cohen's κ over the fixed 0–3 scale, and the 4×4 table of hand grade against judge grade. A sampled κ weights high grades more than the pool does, because each grade gets an equal share.
+
 ### `bench run [<name>] [--judgments <S|path>] [--jobs <name,...>]`
 
 Executes the suite against all engines, computes IR metrics and latency, prints a styled table with per-engine NDCG/MAP/MRR/Bpref + latency percentiles + statistical significance, then writes `reports/<run_id>.json`.
