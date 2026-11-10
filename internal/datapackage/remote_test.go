@@ -19,7 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/s3mock"
 
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/datapackage"
 )
 
 const s3MockImage = "adobe/s3mock:5.2.3@sha256:ab01a6946750f451ca215a47e91030695b260e4003b8a5a6201d25029b8fca92"

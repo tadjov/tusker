@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
+	"github.com/tadjov/tusker/internal/types/operator"
 )
 
 // Capabilities is what a full-text engine can honour within the query types it

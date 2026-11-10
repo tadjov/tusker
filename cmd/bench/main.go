@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/spf13/cobra"
+	"github.com/tadjov/tusker/internal/bench/judgment"
+	"github.com/tadjov/tusker/internal/bench/spec"
 )
 
 func init() {

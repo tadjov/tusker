@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/report"
+	"github.com/tadjov/tusker/internal/bench/version"
 )
 
 func writeCleanReport(t *testing.T, tr lineageTrack, runID string, incomplete ...string) string {

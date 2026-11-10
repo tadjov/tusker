@@ -10,8 +10,8 @@ import (
 	neturl "net/url"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/spec"
 )
 
 type EsExecutor struct {

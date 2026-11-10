@@ -9,14 +9,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/runner"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
+	"github.com/tadjov/tusker/internal/storage"
+	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
 type stubVectorStore struct{ model string }

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/storage/pg"
 )
 
 type PgExecutor struct {

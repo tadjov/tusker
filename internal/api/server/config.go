@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
-	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/labstack/gommon/bytes"
+	"github.com/tadjov/tusker/pkg/config/env"
+	"github.com/tadjov/tusker/pkg/utils"
 )
 
 const (

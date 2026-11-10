@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/cli"
-	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/cli"
+	"github.com/tadjov/tusker/internal/ingest/reader"
 )
 
 type plainSource struct{ reader.RawParallelReader }

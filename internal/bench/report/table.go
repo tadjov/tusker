@@ -7,10 +7,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/tadjov/tusker/internal/bench/metrics"
 )
 
 // table-level color instances

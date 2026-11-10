@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/datapackage"
 )
 
 const (

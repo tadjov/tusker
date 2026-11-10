@@ -12,14 +12,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"github.com/tadjov/tusker/internal/bench/judgment"
+	"github.com/tadjov/tusker/internal/bench/metrics"
+	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 const contentPreviewRunes = 800

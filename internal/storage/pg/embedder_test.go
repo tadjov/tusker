@@ -3,10 +3,10 @@ package pg
 import (
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
+	"github.com/tadjov/tusker/internal/embedding"
+	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
 func newEmbedTestPool(t *testing.T) *ConnectionPool {

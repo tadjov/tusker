@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 func TestNewValidation(t *testing.T) {

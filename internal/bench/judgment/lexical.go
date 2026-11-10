@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
 // LexicalStrategy is a deterministic baseline judge. It tokenizes the query

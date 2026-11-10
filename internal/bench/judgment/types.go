@@ -3,8 +3,8 @@ package judgment
 import (
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/meta"
 	"gopkg.in/yaml.v3"
 )
 

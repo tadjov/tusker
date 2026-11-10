@@ -11,11 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
-	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/ingest/reader"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/pkg/apis/datamapping"
 )
 
 // PreprocessOptions with an empty Version publishes datapackage.DefaultVersion.

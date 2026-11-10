@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+	"github.com/tadjov/tusker/pkg/apis/datamapping"
 	"gopkg.in/yaml.v3"
 )
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 // VectorStrategy grades candidates by cosine similarity between the query

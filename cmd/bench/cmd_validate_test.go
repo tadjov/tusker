@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
-	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/dialect"
+	"github.com/tadjov/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/suite"
+	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
 // An interrupt mid-validate must surface as the interrupt: validating the

@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 // fixedModelStore embeds nothing — only the model it reports is under test.

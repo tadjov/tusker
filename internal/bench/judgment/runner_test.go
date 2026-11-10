@@ -6,13 +6,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/types/document"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
 type stubStorageReader struct {

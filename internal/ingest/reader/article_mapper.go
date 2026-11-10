@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
-	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
-	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
+	"github.com/tadjov/tusker/pkg/apis/datamapping"
+	"github.com/tadjov/tusker/pkg/utils"
 )
 
 type ArticleMapper struct {

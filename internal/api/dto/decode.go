@@ -9,7 +9,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 // DecodeSearchRequest reads a structured search request. A key no request type

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
+	"github.com/tadjov/tusker/internal/storage"
+	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
 func TestDescribeIndex_ReadsTheLiveIndex(t *testing.T) {

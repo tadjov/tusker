@@ -8,14 +8,14 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/spf13/cobra"
+	"github.com/tadjov/tusker/internal/bench/dialect"
+	"github.com/tadjov/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/runner"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/suite"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 type validateFlags struct {

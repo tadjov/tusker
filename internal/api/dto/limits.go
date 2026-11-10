@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"unicode/utf8"
 
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/DjordjeVuckovic/tusker/pkg/pagination"
+	"github.com/tadjov/tusker/internal/apperr"
+	"github.com/tadjov/tusker/pkg/pagination"
 )
 
 // MaxQueryLength caps query text in characters, not bytes, so a Serbian

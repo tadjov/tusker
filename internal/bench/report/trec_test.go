@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/judgment"
+	"github.com/tadjov/tusker/internal/bench/metrics"
+	"github.com/tadjov/tusker/internal/bench/runner"
 )
 
 func fixtureDoc(n int) uuid.UUID {

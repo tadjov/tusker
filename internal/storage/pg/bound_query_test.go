@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
-	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/dialect"
+	"github.com/tadjov/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/suite"
+	"github.com/tadjov/tusker/internal/storage/pg"
+	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
 const awkwardQueryText = `Ukraine's voters don't trust the "election"`

@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/metrics"
+	"github.com/tadjov/tusker/internal/bench/runner"
 )
 
 func answered(qid, engine string, ap float64, latency time.Duration) runner.QueryResult {

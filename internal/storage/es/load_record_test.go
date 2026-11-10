@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
 // loadRecord matches what the Elasticsearch loader stores under _meta.load.

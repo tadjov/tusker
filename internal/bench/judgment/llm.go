@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
 const (

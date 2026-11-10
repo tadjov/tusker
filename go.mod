@@ -1,4 +1,4 @@
-module github.com/DjordjeVuckovic/tusker
+module github.com/tadjov/tusker
 
 go 1.25.0
 

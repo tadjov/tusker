@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 func TestBM25GradePool_RanksByRelevance(t *testing.T) {

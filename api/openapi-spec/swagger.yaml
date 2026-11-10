@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.Article:
+  github_com_tadjov_tusker_internal_api_dto.Article:
     properties:
       content:
         type: string
@@ -11,7 +11,7 @@ definitions:
       language:
         type: string
       metadata:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.Metadata'
       publishedAt:
         type: string
       publisherDomain:
@@ -22,11 +22,11 @@ definitions:
         format: string
         type: string
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult:
+  github_com_tadjov_tusker_internal_api_dto.ArticleSearchResult:
     properties:
       article:
         allOf:
-        - $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Article'
+        - $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.Article'
         description: Embedded Article struct for search results
       score:
         description: Score rank between 0 and 1
@@ -35,7 +35,7 @@ definitions:
         description: ScoreNormalized is the normalized(between 0-1) score
         type: number
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.BooleanParams:
+  github_com_tadjov_tusker_internal_api_dto.BooleanParams:
     properties:
       expression:
         minLength: 1
@@ -45,14 +45,14 @@ definitions:
     required:
     - expression
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse:
+  github_com_tadjov_tusker_internal_api_dto.CapabilitiesResponse:
     properties:
       full_text:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_types_query.Capabilities'
       query_types:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.QueryTypes'
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.HybridParams:
+  github_com_tadjov_tusker_internal_api_dto.HybridParams:
     properties:
       k:
         minimum: 1
@@ -65,7 +65,7 @@ definitions:
     required:
     - query
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.MatchParams:
+  github_com_tadjov_tusker_internal_api_dto.MatchParams:
     properties:
       field:
         type: string
@@ -82,7 +82,7 @@ definitions:
     - field
     - query
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata:
+  github_com_tadjov_tusker_internal_api_dto.Metadata:
     properties:
       authors:
         items:
@@ -107,7 +107,7 @@ definitions:
       section:
         type: string
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams:
+  github_com_tadjov_tusker_internal_api_dto.MultiMatchParams:
     properties:
       fields:
         description: Fields name the fields to match, each optionally boosted as "title^3".
@@ -126,7 +126,7 @@ definitions:
     - fields
     - query
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.PhraseParams:
+  github_com_tadjov_tusker_internal_api_dto.PhraseParams:
     properties:
       fields:
         items:
@@ -146,7 +146,7 @@ definitions:
     - fields
     - query
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes:
+  github_com_tadjov_tusker_internal_api_dto.QueryTypes:
     properties:
       boolean:
         type: boolean
@@ -163,34 +163,34 @@ definitions:
       semantic:
         type: boolean
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper:
+  github_com_tadjov_tusker_internal_api_dto.QueryWrapper:
     properties:
       boolean:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.BooleanParams'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.BooleanParams'
       hybrid:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.HybridParams'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.HybridParams'
       match:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.MatchParams'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.MatchParams'
       multi_match:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.MultiMatchParams'
       phrase:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.PhraseParams'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.PhraseParams'
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest:
+  github_com_tadjov_tusker_internal_api_dto.SearchRequest:
     properties:
       cursor:
         type: string
       query:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.QueryWrapper'
       size:
         minimum: 1
         type: integer
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse:
+  github_com_tadjov_tusker_internal_api_dto.SearchResponse:
     properties:
       effective:
         allOf:
-        - $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Effective'
+        - $ref: '#/definitions/github_com_tadjov_tusker_internal_types_query.Effective'
         description: |-
           Effective is the contract the search ran under, with every omitted
           parameter filled by the engine.
@@ -198,12 +198,12 @@ definitions:
         type: boolean
       hits:
         items:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult'
+          $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.ArticleSearchResult'
         type: array
       ignored:
         description: Ignored lists the stated parameters the engine did not honour.
         items:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored'
+          $ref: '#/definitions/github_com_tadjov_tusker_internal_types_query.Ignored'
         type: array
       max_score:
         type: number
@@ -214,24 +214,24 @@ definitions:
       total_matches:
         type: integer
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.SemanticSearchResponse:
+  github_com_tadjov_tusker_internal_api_dto.SemanticSearchResponse:
     properties:
       has_more:
         type: boolean
       hits:
         items:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Article'
+          $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.Article'
         type: array
       next_cursor:
         type: string
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_types_language.Code:
+  github_com_tadjov_tusker_internal_types_language.Code:
     enum:
     - eng
     type: string
     x-enum-varnames:
     - English
-  github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator:
+  github_com_tadjov_tusker_internal_types_operator.Operator:
     enum:
     - AND
     - OR
@@ -239,13 +239,13 @@ definitions:
     x-enum-varnames:
     - And
     - Or
-  github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities:
+  github_com_tadjov_tusker_internal_types_query.Capabilities:
     properties:
       boosts:
         type: boolean
       default_operator:
         allOf:
-        - $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator'
+        - $ref: '#/definitions/github_com_tadjov_tusker_internal_types_operator.Operator'
         description: DefaultOperator combines terms when a request names no operator.
       engine:
         type: string
@@ -253,25 +253,25 @@ definitions:
         description: Fields are the fields the engine can match apart from every other
           field.
         items:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field'
+          $ref: '#/definitions/github_com_tadjov_tusker_internal_types_query.Field'
         type: array
       fuzziness:
         type: boolean
       phrase_slop:
         type: boolean
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_types_query.Effective:
+  github_com_tadjov_tusker_internal_types_query.Effective:
     properties:
       fields:
         items:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field'
+          $ref: '#/definitions/github_com_tadjov_tusker_internal_types_query.Field'
         type: array
       language:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_language.Code'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_types_language.Code'
       operator:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator'
+        $ref: '#/definitions/github_com_tadjov_tusker_internal_types_operator.Operator'
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_types_query.Field:
+  github_com_tadjov_tusker_internal_types_query.Field:
     enum:
     - title
     - description
@@ -281,7 +281,7 @@ definitions:
     - FieldTitle
     - FieldDescription
     - FieldContent
-  github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored:
+  github_com_tadjov_tusker_internal_types_query.Ignored:
     properties:
       engine:
         type: string
@@ -320,7 +320,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest'
+          $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.SearchRequest'
       - description: handling=lenient drops a parameter the engine cannot honour and
           lists it in ignored, instead of a 400
         in: header
@@ -332,7 +332,7 @@ paths:
         "200":
           description: SearchStringQuery results with pagination metadata
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse'
+            $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.SearchResponse'
         "400":
           description: Bad request - invalid query structure or parameters
           schema:
@@ -394,7 +394,7 @@ paths:
         "200":
           description: SearchStringQuery results with pagination metadata
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse'
+            $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.SearchResponse'
         "400":
           description: Bad request - missing or invalid parameters
           schema:
@@ -439,7 +439,7 @@ paths:
         "200":
           description: SearchStringQuery results with pagination metadata
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SemanticSearchResponse'
+            $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.SemanticSearchResponse'
         "400":
           description: Bad request - missing or invalid parameters
           schema:
@@ -468,7 +468,7 @@ paths:
         "200":
           description: Supported query types and parameters
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse'
+            $ref: '#/definitions/github_com_tadjov_tusker_internal_api_dto.CapabilitiesResponse'
       summary: Report supported query types and parameters
       tags:
       - capabilities

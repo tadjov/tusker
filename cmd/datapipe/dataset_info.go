@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/cli"
-	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
+	"github.com/tadjov/tusker/internal/cli"
+	"github.com/tadjov/tusker/internal/ingest/reader"
 )
 
 // rowCounter is implemented by readers whose format records its row count in

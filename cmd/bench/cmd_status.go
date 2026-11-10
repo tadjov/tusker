@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/spf13/cobra"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
 )
 
 func newStatusCmd() *cobra.Command {

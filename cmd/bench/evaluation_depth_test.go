@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/report"
 )
 
 // depthTrack is pooled 3 deep while engine a ranks five judged docs for q1:

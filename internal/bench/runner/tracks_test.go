@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/spec"
 )
 
 // Every committed track must load with each engine given the args its queries

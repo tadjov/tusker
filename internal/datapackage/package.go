@@ -2,8 +2,8 @@
 package datapackage
 
 import (
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
-	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+	"github.com/tadjov/tusker/internal/types/language"
+	"github.com/tadjov/tusker/pkg/apis/datamapping"
 )
 
 const (

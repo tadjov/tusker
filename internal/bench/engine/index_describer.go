@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/tadjov/tusker/internal/storage/es"
+	"github.com/tadjov/tusker/internal/storage/pg"
 )
 
 // IndexDescriber is an optional capability for executors that can read, from

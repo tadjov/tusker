@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
 // WriteQrels exports a JudgmentFile in TREC qrels format:

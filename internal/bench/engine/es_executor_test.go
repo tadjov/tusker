@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/spec"
 )
 
 // fakeValidateAPI answers <index>/_validate/query the way Elasticsearch does:

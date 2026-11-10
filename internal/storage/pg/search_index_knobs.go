@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5"
+	"github.com/tadjov/tusker/internal/storage"
 )
 
 // searchIndexKnobs is what an engine's search index declares beyond the shared build settings.

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/engine"
 )
 
 // requestContent is the part of a request that decides what an engine answers.

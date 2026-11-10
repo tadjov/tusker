@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
-	apiserver "github.com/DjordjeVuckovic/tusker/internal/api/server"
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
-	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/api/dto"
+	apiserver "github.com/tadjov/tusker/internal/api/server"
+	"github.com/tadjov/tusker/internal/apperr"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
+	dquery "github.com/tadjov/tusker/internal/types/query"
 )
 
 type oneArticleSearcher struct {

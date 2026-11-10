@@ -4,9 +4,9 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
 type PoolFile struct {

@@ -12,16 +12,16 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
-	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/queryvectors"
+	"github.com/tadjov/tusker/internal/bench/engine"
+	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/suite"
+	"github.com/tadjov/tusker/internal/bench/trackctx"
+	"github.com/tadjov/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/embedding"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/storage/factory"
+	"github.com/tadjov/tusker/internal/storage/pg"
+	"github.com/tadjov/tusker/internal/storage/queryvectors"
 )
 
 // trackRootEnv names the environment variable behind the --track-root flag.

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	pkgserver "github.com/DjordjeVuckovic/tusker/pkg/server"
 	"github.com/labstack/echo/v4"
+	pkgserver "github.com/tadjov/tusker/pkg/server"
 )
 
 func newServer(t *testing.T, cfg *Config, checker pkgserver.HealthChecker) *Server {

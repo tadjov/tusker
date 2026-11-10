@@ -7,9 +7,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/spec"
 )
 
 var (

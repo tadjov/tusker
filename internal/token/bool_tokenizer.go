@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 type BoolTokenizer struct {

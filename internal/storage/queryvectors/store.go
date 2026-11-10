@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
-	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
+	"github.com/tadjov/tusker/internal/bench/suite"
+	"github.com/tadjov/tusker/internal/datapackage"
+	"github.com/tadjov/tusker/internal/storage/pg"
 )
 
 type Options struct {

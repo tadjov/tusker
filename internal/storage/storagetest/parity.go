@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/types/document"
-	"github.com/DjordjeVuckovic/tusker/internal/types/language"
-	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
-	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/storage"
+	"github.com/tadjov/tusker/internal/types/document"
+	"github.com/tadjov/tusker/internal/types/language"
+	"github.com/tadjov/tusker/internal/types/operator"
+	"github.com/tadjov/tusker/internal/types/query"
 )
 
 // Engine names the backend an engine-specific expectation belongs to.
