@@ -1,0 +1,52 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
+  "name": "cc-news-raw",
+  "version": "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36",
+  "producedBy": {
+    "tool": "scripts/fetch_hf_dataset.py"
+  },
+  "sources": [
+    {
+      "title": "Hugging Face vblagoje/cc_news",
+      "path": "https://huggingface.co/datasets/vblagoje/cc_news",
+      "version": "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"
+    }
+  ],
+  "resources": [
+    {
+      "name": "train-00000-of-00005.parquet",
+      "path": "train-00000-of-00005.parquet",
+      "format": "parquet",
+      "bytes": 211044294,
+      "hash": "sha256:5cda9a2b0b40a9c9438ae02168b16beb61e52449a895869515501962c5aeb977"
+    },
+    {
+      "name": "train-00001-of-00005.parquet",
+      "path": "train-00001-of-00005.parquet",
+      "format": "parquet",
+      "bytes": 233804414,
+      "hash": "sha256:1d33583fdd82fa28a7aa961a633aeb63be90fdac8f47c1893daf630c9a5f074a"
+    },
+    {
+      "name": "train-00002-of-00005.parquet",
+      "path": "train-00002-of-00005.parquet",
+      "format": "parquet",
+      "bytes": 218914067,
+      "hash": "sha256:78d59696b61fa9789879836a303c7a04beb52107c6678a444b98ce4e8b97b1ae"
+    },
+    {
+      "name": "train-00003-of-00005.parquet",
+      "path": "train-00003-of-00005.parquet",
+      "format": "parquet",
+      "bytes": 244540595,
+      "hash": "sha256:53b35fa4b5d82a0308ddaba3d55033c49a1f1d4cca45d88d2633495cab4767db"
+    },
+    {
+      "name": "train-00004-of-00005.parquet",
+      "path": "train-00004-of-00005.parquet",
+      "format": "parquet",
+      "bytes": 214502216,
+      "hash": "sha256:e0869a42852439aa408030de51464d0a8cbe5608ff1a7ba9d165e10964c6fdef"
+    }
+  ]
+}

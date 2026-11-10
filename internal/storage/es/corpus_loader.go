@@ -93,6 +93,7 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 
 	var stages []storage.StageTiming
 	timed := func(name string, stage func() error) error {
+		slog.Info("corpus load stage started", "index", index, "stage", name)
 		began := time.Now()
 		if err := stage(); err != nil {
 			return err
@@ -119,10 +120,16 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 	}); err != nil {
 		return storage.LoadRecord{}, err
 	}
-	if err := timed("refresh", func() error { return l.refresh(ctx, written.articles) }); err != nil {
+	if err := timed("refresh", func() error {
+		defer storage.WatchStage(ctx, []any{"index", index, "stage", "refresh"}, nil)()
+		return l.refresh(ctx, written.articles)
+	}); err != nil {
 		return storage.LoadRecord{}, err
 	}
-	if err := timed("force_merge", func() error { return l.forceMerge(ctx) }); err != nil {
+	if err := timed("force_merge", func() error {
+		defer storage.WatchStage(ctx, []any{"index", index, "stage", "force_merge"}, nil)()
+		return l.forceMerge(ctx)
+	}); err != nil {
 		return storage.LoadRecord{}, err
 	}
 
@@ -246,7 +253,6 @@ func (l *CorpusLoader) waitForTask(ctx context.Context, taskID string) error {
 		res, err := l.client.typed.Tasks.Get(taskID).WaitForCompletion(true).Timeout(l.taskPollTimeout()).Do(ctx)
 		var esErr *types.ElasticsearchError
 		if errors.As(err, &esErr) && esErr.ErrorCause.Type == "timeout_exception" {
-			slog.Info("waiting for elasticsearch task", "task", taskID)
 			continue
 		}
 		if err != nil {
@@ -383,6 +389,7 @@ func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, bat
 	var batch bulkBatch
 	var counts writeCounts
 	failures := &DocumentsFailedError{Index: l.client.indexName}
+	var reported int64
 	flush := func() error {
 		if len(batch.ids) == 0 {
 			return nil
@@ -392,6 +399,10 @@ func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, bat
 		}
 		if err := l.sendBatch(ctx, &batch, &counts, failures); err != nil {
 			return err
+		}
+		if counts.articles-reported >= storage.ProgressRows {
+			slog.Info("corpus load progress", "index", l.client.indexName, "articles", counts.articles)
+			reported = counts.articles
 		}
 		batch = bulkBatch{}
 		return nil
