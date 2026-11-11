@@ -3,7 +3,6 @@ package judgment
 import (
 	"context"
 	"math"
-	"strings"
 
 	"github.com/tadjov/tusker/internal/bench/meta"
 )
@@ -33,28 +32,40 @@ func (BM25Strategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyBM25), RubricVersion: bm25RubricVersion}
 }
 
+// GradePool gives 0 to a document the query's category gate refuses; the term
+// statistics still count it.
 func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
-	norms, err := s.normScores(q, docs)
+	tq, err := readTermQuery(q)
 	if err != nil {
 		return nil, err
 	}
+	analyzed := analyzeDocs(docs)
+	norms := s.normScores(tq.terms, analyzed)
 	out := make([]GradedDoc, len(docs))
 	for i, d := range docs {
-		out[i] = GradedDoc{DocID: d.ID, Grade: gradeFromNorm(norms[i])}
+		grade := GradeNotRelev
+		if tq.admits(analyzed[i]) {
+			grade = gradeFromNorm(norms[i])
+		}
+		out[i] = GradedDoc{DocID: d.ID, Grade: grade}
 	}
 	return out, nil
 }
 
+func analyzeDocs(docs []GradingDoc) []analyzedDoc {
+	out := make([]analyzedDoc, len(docs))
+	for i, d := range docs {
+		out[i] = analyzeDoc(d)
+	}
+	return out
+}
+
 // normScores returns each doc's BM25 score normalised to [0,1] against the
 // top-scoring candidate in the pool. Shared with HybridStrategy.
-func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, error) {
-	terms, err := queryTerms(q)
-	if err != nil {
-		return nil, err
-	}
+func (BM25Strategy) normScores(terms []string, docs []analyzedDoc) []float64 {
 	norms := make([]float64, len(docs))
 	if len(docs) == 0 {
-		return norms, nil
+		return norms
 	}
 
 	counts := make([]map[string]int, len(docs))
@@ -62,7 +73,12 @@ func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, er
 	df := map[string]int{}
 	totalLen := 0
 	for i, d := range docs {
-		c := termCounts(docText(d))
+		c := map[string]int{}
+		for _, field := range d.fields() {
+			for _, t := range field {
+				c[t]++
+			}
+		}
 		counts[i] = c
 		for _, n := range c {
 			lengths[i] += n
@@ -103,7 +119,7 @@ func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, er
 			norms[i] = scores[i] / maxScore
 		}
 	}
-	return norms, nil
+	return norms
 }
 
 // gradeFromNorm maps a [0,1] relevance score to a grade. Shared by BM25 and the
@@ -119,8 +135,4 @@ func gradeFromNorm(norm float64) int {
 	default:
 		return GradeNotRelev
 	}
-}
-
-func docText(d GradingDoc) string {
-	return strings.Join([]string{d.Title, d.Description, d.Content}, " ")
 }

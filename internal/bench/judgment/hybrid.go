@@ -58,10 +58,11 @@ func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []Gr
 	if len(docs) == 0 {
 		return nil, nil
 	}
-	bm25Norms, err := s.bm25.normScores(q, docs)
+	bm25Terms, err := queryTerms(q)
 	if err != nil {
 		return nil, err
 	}
+	bm25Norms := s.bm25.normScores(bm25Terms, analyzeDocs(docs))
 	qVec, vecs, err := s.vector.vectors(ctx, q, docs)
 	if err != nil {
 		return nil, fmt.Errorf("hybrid vector component: %w", err)

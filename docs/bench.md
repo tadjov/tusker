@@ -47,9 +47,9 @@ where a keyword query matches thousands, and AP, recall and the NDCG ideal all n
 against the full judged relevant set, so an engine returning the correct two scores as
 though it missed forty. One mean over both measures list length as much as ranking quality.
 
-The tag also reaches the judge: `bench pool` copies it into `pool.yaml`, and the LLM prompt
-turns `phrase` and `boolean` into an explicit rule, so an on-topic article that fails the
-constraint grades 0.
+The tag also reaches the judge: `bench pool` copies it into `pool.yaml`, and `keyword`,
+`bm25` and the LLM prompt turn `phrase` and `boolean` into an explicit rule, so an on-topic
+article that fails the constraint grades 0.
 
 ### Engine connection settings
 
@@ -305,6 +305,15 @@ into each pool entry beside the description and refuses a query without one, and
 Unicode letters and digits, two runes or longer (`US` counts), each stemmed with Snowball
 English, the stemmer every engine uses, so `elections` matches `election`. A short stoplist
 (`the`, `of`, `and`, …) is dropped from the query's terms, never from the document.
+
+Both apply the query's category as a gate before scoring. A `phrase` query grades 0 unless
+one field holds its stemmed words adjacent and in order. A `boolean` query's text is parsed
+the way the API's boolean search reads it: `AND`, `OR`, `NOT` in any case, parentheses,
+quoted phrases, `AND` between adjacent operands, `NOT` binding tighter than `AND` and `AND`
+tighter than `OR`; a document for which the expression is false grades 0, and negated
+operands never score. Scoring ranks only the documents that pass, and `bm25` still counts
+every pooled document in its term statistics. A boolean text that does not parse leaves its
+query unjudged, as a query without terms does.
 
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes

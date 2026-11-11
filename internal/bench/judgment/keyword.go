@@ -2,6 +2,7 @@ package judgment
 
 import (
 	"context"
+	"slices"
 
 	"github.com/tadjov/tusker/internal/bench/meta"
 )
@@ -21,28 +22,29 @@ func (KeywordStrategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyKeyword), RubricVersion: keywordRubricVersion}
 }
 
+// Grade gives 0 to a document the query's category gate refuses.
 func (KeywordStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	terms, err := queryTerms(q)
+	tq, err := readTermQuery(q)
 	if err != nil {
 		return GradeUnjudged, err
 	}
-
-	titleTokens := termSet(doc.Title)
-	descTokens := termSet(doc.Description)
-	contentTokens := termSet(doc.Content)
+	analyzed := analyzeDoc(doc)
+	if !tq.admits(analyzed) {
+		return GradeNotRelev, nil
+	}
 
 	titleHits, otherHits := 0, 0
-	for _, t := range terms {
-		if titleTokens[t] {
+	for _, t := range tq.terms {
+		if slices.Contains(analyzed.title, t) {
 			titleHits++
 			continue
 		}
-		if descTokens[t] || contentTokens[t] {
+		if slices.Contains(analyzed.description, t) || slices.Contains(analyzed.content, t) {
 			otherHits++
 		}
 	}
 
-	total := len(terms)
+	total := len(tq.terms)
 	titleRatio := float64(titleHits) / float64(total)
 	overallRatio := float64(titleHits+otherHits) / float64(total)
 
