@@ -325,13 +325,19 @@ match each field on its own to agree with the judge: one matched against a conca
 tsvector (`title || ' ' || description`, or `search_vector`) also matches across a field
 boundary, and those hits grade 0.
 
+The judges split a word at every character that is not a letter or digit, so two forms are
+a known difference: a hyphenated word (`e-mail`, which Postgres indexes whole beside its
+parts) and a dotted form (`U.S.`, `A.I.`, `e.g.`, one token in
+Postgres and Elasticsearch). The suite load refuses a dotted form in a `phrase` or `boolean`
+query's text, naming the query: write `US`.
+
 A `boolean` query's text is parsed with `internal/token`'s grammar: `AND`, `OR`, `NOT` in any
 case, parentheses, quoted phrases, `AND` between adjacent operands, `NOT` binding tighter
 than `AND` and `AND` tighter than `OR`. A document for which the expression is false grades
 0, and negated operands never score. An operand holding only stopwords drops out of the
 expression, as `to_tsquery` drops a stopword. A single letter that is not a stopword stays a
-term, as it does in Postgres and Elasticsearch: `vitamin D AND deficiency` needs the `d`, and
-`U.S.` needs `u` but not `s`, which is a stopword. Scoring ranks only the documents that
+term, as it does in Postgres and Elasticsearch: `vitamin D AND deficiency` needs the `d`.
+Scoring ranks only the documents that
 pass, and `bm25` still counts every pooled document in its term statistics. A boolean text
 that does not parse fails the suite load, naming the query, so `bench validate` and
 `bench pool` refuse it; in a pool written before, the judges leave that query unjudged, as

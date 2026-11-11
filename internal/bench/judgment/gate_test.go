@@ -212,11 +212,11 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 			positive: []string{"Vitamin D deficiency rises"},
 		},
 		{
-			name:     "an abbreviation keeps its letters that are not stopwords, so U.S. needs u and not s",
-			query:    GradingQuery{ID: "q", Text: "U.S. AND election", Category: "boolean"},
-			docs:     titled("U.S. election results", "U election results", "UK election results", "Football results"),
-			zero:     []string{"UK election results", "Football results"},
-			positive: []string{"U.S. election results", "U election results"},
+			name:     "an abbreviation written out is one term, which a dotted form in the doc does not hold",
+			query:    GradingQuery{ID: "q", Text: "US AND election", Category: "boolean"},
+			docs:     titled("US election results", "U.S. election results", "UK election results"),
+			zero:     []string{"U.S. election results", "UK election results"},
+			positive: []string{"US election results"},
 		},
 	}
 	for judge, grade := range termJudges {

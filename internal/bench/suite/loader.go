@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 
 	"github.com/tadjov/tusker/internal/bench/version"
@@ -69,10 +70,8 @@ func Parse(data []byte) (*LoadedSuite, error) {
 				return nil, fmt.Errorf("query %q: %w", q.ID, err)
 			}
 		}
-		if q.Category == CategoryBoolean && q.Text != "" {
-			if _, err := ParseBoolean(q.Text); err != nil {
-				return nil, fmt.Errorf("query %q: %w", q.ID, err)
-			}
+		if err := checkGatedText(q); err != nil {
+			return nil, fmt.Errorf("query %q: %w", q.ID, err)
 		}
 		if err := q.Filters.check(); err != nil {
 			return nil, fmt.Errorf("query %q: %w", q.ID, err)
@@ -90,6 +89,28 @@ func Parse(data []byte) (*LoadedSuite, error) {
 	}
 
 	return &LoadedSuite{Suite: &s, Registry: registry}, nil
+}
+
+// dottedForm is a run of letters joined by dots, such as U.S. or e.g.
+var dottedForm = regexp.MustCompile(`[\p{L}\p{N}]*\p{L}(?:\.\p{L}[\p{L}\p{N}]*)+\.?`)
+
+// checkGatedText refuses the text of a phrase or boolean query that its gate
+// would read otherwise than the engines: a boolean text that does not parse,
+// or a dotted form, which Postgres and Elasticsearch keep as one token and the
+// judges split at each dot.
+func checkGatedText(q Query) error {
+	if q.Category != CategoryPhrase && q.Category != CategoryBoolean {
+		return nil
+	}
+	if dotted := dottedForm.FindString(q.Text); dotted != "" {
+		return fmt.Errorf("text %q holds the dotted form %q, which the engines read as one token and the judges as several: write it without dots", q.Text, dotted)
+	}
+	if q.Category == CategoryBoolean && q.Text != "" {
+		if _, err := ParseBoolean(q.Text); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func checkEngineQuery(eq *EngineQuery, registry *TemplateRegistry) error {

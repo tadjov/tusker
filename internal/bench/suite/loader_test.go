@@ -432,3 +432,37 @@ func TestParse_PublisherDomainFilter(t *testing.T) {
 		})
 	}
 }
+
+// Postgres and Elasticsearch keep U.S. as one token where the judges split it,
+// so a gated query must spell such a form out.
+func TestParse_RejectsADottedFormInAGatedQuerysText(t *testing.T) {
+	tests := []struct {
+		text, category string
+		wantErr        bool
+	}{
+		{text: "A.I. regulation", category: "phrase", wantErr: true},
+		{text: "U.S. AND election", category: "boolean", wantErr: true},
+		{text: "climate e.g. floods", category: "phrase", wantErr: true},
+		{text: "AI regulation", category: "phrase"},
+		{text: "US AND election", category: "boolean"},
+		{text: "U.S. election", category: "keyword"},
+		{text: "climate. Policy", category: "phrase"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.text, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-dotted
+    text: "` + tt.text + `"
+    category: ` + tt.category + `
+    engines:
+      pg: "SELECT 1"
+`))
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-dotted"`)
+		})
+	}
+}
