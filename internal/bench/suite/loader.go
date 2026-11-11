@@ -91,8 +91,12 @@ func Parse(data []byte) (*LoadedSuite, error) {
 	return &LoadedSuite{Suite: &s, Registry: registry}, nil
 }
 
-// dottedForm is a run of letters joined by dots, such as U.S. or e.g.
-var dottedForm = regexp.MustCompile(`[\p{L}\p{N}]*\p{L}(?:\.\p{L}[\p{L}\p{N}]*)+\.?`)
+var (
+	// dottedForm is a word joined to the next by a dot: U.S., No.10, news.com.
+	dottedForm = regexp.MustCompile(`[\p{L}\p{N}]*\p{L}(?:\.[\p{L}\p{N}]+)+\.?`)
+	// initialism is a dotted form of single letters: U.S., e.g.
+	initialism = regexp.MustCompile(`^(?:\p{L}\.)+\p{L}?$`)
+)
 
 // checkGatedText refuses the text of a phrase or boolean query that its gate
 // would read otherwise than the engines: a boolean text that does not parse,
@@ -103,7 +107,11 @@ func checkGatedText(q Query) error {
 		return nil
 	}
 	if dotted := dottedForm.FindString(q.Text); dotted != "" {
-		return fmt.Errorf("text %q holds the dotted form %q, which the engines read as one token and the judges as several: write it without dots", q.Text, dotted)
+		advice := "write it as separate words or drop it"
+		if initialism.MatchString(dotted) {
+			advice = "write it without dots"
+		}
+		return fmt.Errorf("text %q holds the dotted form %q, which the engines read as one token and the judges as several: %s", q.Text, dotted, advice)
 	}
 	if q.Category == CategoryBoolean && q.Text != "" {
 		if _, err := ParseBoolean(q.Text); err != nil {

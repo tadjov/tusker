@@ -328,8 +328,9 @@ boundary, and those hits grade 0.
 The judges split a word at every character that is not a letter or digit, so two forms are
 a known difference: a hyphenated word (`e-mail`, which Postgres indexes whole beside its
 parts) and a dotted form (`U.S.`, `A.I.`, `e.g.`, one token in
-Postgres and Elasticsearch). The suite load refuses a dotted form in a `phrase` or `boolean`
-query's text, naming the query: write `US`.
+Postgres and Elasticsearch). The suite load refuses a dotted form, a word joined to the next
+by a dot (`U.S.`, `No.10`, `news.com`), in a `phrase` or `boolean` query's text, naming the
+query: write an initialism without dots (`US`), anything else as separate words, or drop it.
 
 A `boolean` query's text is parsed with `internal/token`'s grammar: `AND`, `OR`, `NOT` in any
 case, parentheses, quoted phrases, `AND` between adjacent operands, `NOT` binding tighter

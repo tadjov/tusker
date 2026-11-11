@@ -438,15 +438,21 @@ func TestParse_PublisherDomainFilter(t *testing.T) {
 func TestParse_RejectsADottedFormInAGatedQuerysText(t *testing.T) {
 	tests := []struct {
 		text, category string
-		wantErr        bool
+		wantAdvice     string
 	}{
-		{text: "A.I. regulation", category: "phrase", wantErr: true},
-		{text: "U.S. AND election", category: "boolean", wantErr: true},
-		{text: "climate e.g. floods", category: "phrase", wantErr: true},
+		{text: "A.I. regulation", category: "phrase", wantAdvice: "without dots"},
+		{text: "U.S. AND election", category: "boolean", wantAdvice: "without dots"},
+		{text: "climate e.g. floods", category: "phrase", wantAdvice: "without dots"},
+		{text: "No.10 Downing Street", category: "phrase", wantAdvice: "separate words"},
+		{text: "No.1 hit", category: "phrase", wantAdvice: "separate words"},
+		{text: "news.com AND climate", category: "boolean", wantAdvice: "separate words"},
 		{text: "AI regulation", category: "phrase"},
 		{text: "US AND election", category: "boolean"},
 		{text: "U.S. election", category: "keyword"},
 		{text: "climate. Policy", category: "phrase"},
+		{text: "Mr. Smith", category: "phrase"},
+		{text: "3.5 percent", category: "phrase"},
+		{text: "v2.0 release", category: "phrase"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.category+"/"+tt.text, func(t *testing.T) {
@@ -457,12 +463,13 @@ func TestParse_RejectsADottedFormInAGatedQuerysText(t *testing.T) {
     engines:
       pg: "SELECT 1"
 `))
-			if !tt.wantErr {
+			if tt.wantAdvice == "" {
 				assert.NoError(t, err)
 				return
 			}
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), `"q-dotted"`)
+			assert.Contains(t, err.Error(), tt.wantAdvice)
 		})
 	}
 }
