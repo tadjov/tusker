@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -287,4 +288,37 @@ func TestParse_QueryText(t *testing.T) {
 			assert.Equal(t, tc.want, loaded.Suite.Queries[0].Text)
 		})
 	}
+}
+
+func TestParse_QueryFilters(t *testing.T) {
+	loaded, err := Parse([]byte(validHeader + `queries:
+  - id: q1
+    text: climate
+    filters:
+      publisher_domain: reuters.com
+      published_after: 2024-01-01
+      published_before: "2024-07-01T12:00:00Z"
+    engines:
+      pg: "SELECT 1"
+`))
+
+	require.NoError(t, err)
+	assert.Equal(t, Filters{
+		PublisherDomain: "reuters.com",
+		PublishedAfter:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		PublishedBefore: time.Date(2024, 7, 1, 12, 0, 0, 0, time.UTC),
+	}, loaded.Suite.Queries[0].Filters)
+}
+
+func TestParse_RejectsAMisspeltFilter(t *testing.T) {
+	_, err := Parse([]byte(validHeader + `queries:
+  - id: q1
+    text: climate
+    filters:
+      publisher_domian: reuters.com
+    engines:
+      pg: "SELECT 1"
+`))
+
+	assert.ErrorContains(t, err, "publisher_domian")
 }

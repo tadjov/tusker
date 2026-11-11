@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/suite"
 	"github.com/tadjov/tusker/internal/storage"
 )
 
@@ -18,14 +20,17 @@ type GradingQuery struct {
 	Text        string
 	Description string
 	Category    string
+	Filters     suite.Filters
 }
 
 // GradingDoc is a single article candidate to grade.
 type GradingDoc struct {
-	ID          uuid.UUID
-	Title       string
-	Description string
-	Content     string
+	ID              uuid.UUID
+	Title           string
+	Description     string
+	Content         string
+	PublishedAt     time.Time
+	PublisherDomain string
 }
 
 // Strategy names a grader. It grades through one of DocStrategy,

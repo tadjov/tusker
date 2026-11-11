@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -125,4 +126,26 @@ func TestPool_QueryWithoutTextFailsNamingIt(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"q2"`)
 	assert.NoFileExists(t, tr.poolPath())
+}
+
+func TestPool_EntryCarriesTheQueryFilters(t *testing.T) {
+	doc := uuid.New()
+	cluster := fakeCluster(t, map[string]*fakeIndex{
+		"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+		"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+	})
+	tr := newLineageTrack(t, cluster)
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: first query\n",
+		"    text: first query\n    filters: { publisher_domain: reuters.com, published_after: 2024-01-01 }\n")
+
+	pf := tr.pool(t)
+
+	got := map[string]suite.Filters{}
+	for _, entry := range pf.Queries {
+		got[entry.QueryID] = entry.Filters
+	}
+	assert.Equal(t, map[string]suite.Filters{
+		"q1": {PublisherDomain: "reuters.com", PublishedAfter: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+		"q2": {},
+	}, got)
 }

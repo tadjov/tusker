@@ -36,6 +36,9 @@ queries:
   - id: example-q1
     text: "climate change"
     description: "Replace with a real search intent — e.g. 'climate change effects on biodiversity'"
+    # filters:                        # what every engine's statement filters on
+    #   publisher_domain: reuters.com
+    #   published_after: 2024-01-01
     engines:
       pg:
         template: pg_fts_multi_field

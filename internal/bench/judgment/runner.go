@@ -188,7 +188,13 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		return ge, prog, nil
 	}
 
-	q := GradingQuery{ID: entry.QueryID, Text: entry.QueryText, Description: entry.QueryDesc, Category: entry.Category}
+	q := GradingQuery{
+		ID:          entry.QueryID,
+		Text:        entry.QueryText,
+		Description: entry.QueryDesc,
+		Category:    entry.Category,
+		Filters:     entry.Filters,
+	}
 	var gradedByID map[uuid.UUID]int
 	var err error
 	if ps, ok := r.cfg.Strategy.(PoolStrategy); ok {
@@ -426,10 +432,12 @@ func (r *Runner) fetchDocs(ctx context.Context, pooled []pool.PooledDoc) (map[uu
 
 func toGradingDoc(a document.Article) GradingDoc {
 	return GradingDoc{
-		ID:          a.ID,
-		Title:       a.Title,
-		Description: a.Description,
-		Content:     a.Content,
+		ID:              a.ID,
+		Title:           a.Title,
+		Description:     a.Description,
+		Content:         a.Content,
+		PublishedAt:     a.PublishedAt,
+		PublisherDomain: a.PublisherDomain,
 	}
 }
 

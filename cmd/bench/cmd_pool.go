@@ -201,6 +201,7 @@ func buildPoolFile(result *runner.BenchmarkResult, queries map[string]suite.Quer
 			QueryText:      q.Text,
 			QueryDesc:      q.Description,
 			Category:       q.Category,
+			Filters:        q.Filters,
 			Docs:           pool.PoolResults(byQuery[qID], depth),
 			RequestDigests: digests[qID],
 		})

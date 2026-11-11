@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/kljensen/snowball/english"
+	"github.com/tadjov/tusker/internal/bench/suite"
 	"github.com/tadjov/tusker/internal/token"
 )
 
@@ -49,13 +51,22 @@ func terms(s string) []string {
 	return ws
 }
 
-// analyzedDoc holds each field's terms in order.
+// analyzedDoc holds each field's terms in order, and the columns a query's
+// filters read.
 type analyzedDoc struct {
 	title, description, content []string
+	publishedAt                 time.Time
+	publisherDomain             string
 }
 
 func analyzeDoc(d GradingDoc) analyzedDoc {
-	return analyzedDoc{title: terms(d.Title), description: terms(d.Description), content: terms(d.Content)}
+	return analyzedDoc{
+		title:           terms(d.Title),
+		description:     terms(d.Description),
+		content:         terms(d.Content),
+		publishedAt:     d.PublishedAt,
+		publisherDomain: d.PublisherDomain,
+	}
 }
 
 func (d analyzedDoc) fields() [][]string { return [][]string{d.title, d.description, d.content} }
@@ -129,15 +140,35 @@ const (
 )
 
 // termQuery is a query as the keyword and bm25 judges read it: the terms that
-// score a document, and the gate a document must pass to score at all.
+// score a document, and the filters and category gate a document must pass to
+// score at all.
 type termQuery struct {
 	// terms exclude a boolean query's negated operands.
-	terms []string
+	terms   []string
+	filters suite.Filters
 	// gate is nil when every document may score.
 	gate docMatcher
 }
 
-func (q termQuery) admits(d analyzedDoc) bool { return q.gate == nil || q.gate.matches(d) }
+func (q termQuery) admits(d analyzedDoc) bool {
+	return passesFilters(q.filters, d) && (q.gate == nil || q.gate.matches(d))
+}
+
+// passesFilters fails an undated article under any date filter, as an engine's
+// comparison against a NULL published_at does.
+func passesFilters(f suite.Filters, d analyzedDoc) bool {
+	if f.PublisherDomain != "" && d.publisherDomain != f.PublisherDomain {
+		return false
+	}
+	dated := !d.publishedAt.IsZero()
+	if !f.PublishedAfter.IsZero() && (!dated || !d.publishedAt.After(f.PublishedAfter)) {
+		return false
+	}
+	if !f.PublishedBefore.IsZero() && (!dated || !d.publishedAt.Before(f.PublishedBefore)) {
+		return false
+	}
+	return true
+}
 
 func readTermQuery(q GradingQuery) (termQuery, error) {
 	var tq termQuery
@@ -156,6 +187,7 @@ func readTermQuery(q GradingQuery) (termQuery, error) {
 	if len(tq.terms) == 0 {
 		return termQuery{}, &NoQueryTermsError{QueryID: q.ID}
 	}
+	tq.filters = q.Filters
 	return tq, nil
 }
 

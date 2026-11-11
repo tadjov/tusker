@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -51,8 +52,19 @@ type Query struct {
 	Description string `yaml:"description"`
 	// Category drives per-category aggregation and the judge's grading rule.
 	Category  string                 `yaml:"category,omitempty"`
+	Filters   Filters                `yaml:"filters,omitempty"`
 	Engines   map[string]EngineQuery `yaml:"engines"`
 	Judgments []RelevanceJudgment    `yaml:"judgments"`
+}
+
+// Filters declare, engine-neutrally, the structured filters every engine's
+// statement for the query applies. A zero field filters nothing.
+type Filters struct {
+	PublisherDomain string `yaml:"publisher_domain,omitempty"`
+	// PublishedAfter admits articles published strictly later.
+	PublishedAfter time.Time `yaml:"published_after,omitempty"`
+	// PublishedBefore admits articles published strictly earlier.
+	PublishedBefore time.Time `yaml:"published_before,omitempty"`
 }
 
 type EngineQuery struct {

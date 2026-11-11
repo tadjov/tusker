@@ -315,6 +315,21 @@ operands never score. Scoring ranks only the documents that pass, and `bm25` sti
 every pooled document in its term statistics. A boolean text that does not parse leaves its
 query unjudged, as a query without terms does.
 
+A query that filters declares it engine-neutrally, and every engine's statement for it
+applies the same filters:
+
+```yaml
+filters:
+  publisher_domain: reuters.com
+  published_after: 2024-01-01            # a date or an RFC 3339 time
+  published_before: 2024-07-01T00:00:00Z
+```
+
+`published_after` and `published_before` are strict, and an article without a publication
+date fails either, as a comparison against a NULL `published_at` does. `bench pool` copies the
+filters into the pool entry, and `keyword` and `bm25` grade an article that violates one 0,
+the same gate as the category's. `vector` and `hybrid` do not read them.
+
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes
 precedence), and they never re-embed documents. Configure with `--pg`/`PG_CONNECTION_STRING`.
