@@ -328,7 +328,7 @@ func TestJudge_FullyGradedPoolExitsZero(t *testing.T) {
 }
 
 func TestJudge_QueryWithoutTermsFailsAfterWritingTheFile(t *testing.T) {
-	fx := newJudgeFixture(t, "the news", "climate change summit")
+	fx := newJudgeFixture(t, "the of a", "climate change summit")
 	fx.writePriorBM25(t, "prior-run", judgment.Entry{QueryID: "q-gone"})
 
 	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged", "--resume")

@@ -196,3 +196,49 @@ func TestBM25_ResumeAfterMissingArticleMatchesFreshRun(t *testing.T) {
 		}
 	}
 }
+
+func bm25Grades(t *testing.T, text string, docs []GradingDoc) map[uuid.UUID]int {
+	t.Helper()
+	graded, err := BM25Strategy{}.GradePool(context.Background(), GradingQuery{ID: "q1", Text: text}, docs)
+	if err != nil {
+		t.Fatalf("GradePool(%q): %v", text, err)
+	}
+	out := map[uuid.UUID]int{}
+	for _, g := range graded {
+		out[g.DocID] = g.Grade
+	}
+	return out
+}
+
+// bm25 stems query and document alike, so an inflected query term scores
+// exactly as its stem does.
+func TestBM25GradePool_InflectedQueryGradesAsItsStem(t *testing.T) {
+	docs := []GradingDoc{
+		{ID: uuid.New(), Title: "Election results certified", Content: "The election board met."},
+		{ID: uuid.New(), Title: "Elections in three states"},
+		{ID: uuid.New(), Title: "Local football results"},
+	}
+
+	plural := bm25Grades(t, "elections", docs)
+	singular := bm25Grades(t, "election", docs)
+
+	if plural[docs[0].ID] == GradeNotRelev {
+		t.Errorf("%q graded %d for \"elections\", want it to match", docs[0].Title, plural[docs[0].ID])
+	}
+	for _, d := range docs {
+		if plural[d.ID] != singular[d.ID] {
+			t.Errorf("%q: grade %d for \"elections\", %d for \"election\"", d.Title, plural[d.ID], singular[d.ID])
+		}
+	}
+}
+
+func TestBM25GradePool_TwoLetterQueryTermCounts(t *testing.T) {
+	us := GradingDoc{ID: uuid.New(), Title: "US economy slows"}
+	uk := GradingDoc{ID: uuid.New(), Title: "UK economy slows"}
+
+	got := bm25Grades(t, "US", []GradingDoc{us, uk})
+
+	if got[us.ID] <= got[uk.ID] {
+		t.Errorf("US doc graded %d, UK doc %d: want the doc holding the query term graded higher", got[us.ID], got[uk.ID])
+	}
+}

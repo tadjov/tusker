@@ -272,7 +272,7 @@ func TestRunner_QueryWithoutTermsFailsTheRunAfterGradingTheRest(t *testing.T) {
 	for _, strategy := range []Strategy{NewKeywordStrategy(), NewBM25Strategy()} {
 		t.Run(strategy.Name(), func(t *testing.T) {
 			pf, articles := buildPool(t, 3)
-			pf.Queries[0].QueryText = "the news"
+			pf.Queries[0].QueryText = "the of a"
 			usable := pool.PoolEntry{QueryID: "q2", QueryText: "title"}
 			for id := range articles {
 				usable.Docs = append(usable.Docs, pool.PooledDoc{DocID: id})

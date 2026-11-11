@@ -84,3 +84,27 @@ func TestParseGradeJSON(t *testing.T) {
 		assert.ErrorContains(t, err, "out of range")
 	})
 }
+
+func TestKeywordStrategy_GradesWhatTheEnginesMatch(t *testing.T) {
+	s := NewKeywordStrategy()
+	ctx := context.Background()
+	tests := []struct {
+		name string
+		text string
+		doc  GradingDoc
+		want int
+	}{
+		{name: "a plural query term matches its singular", text: "elections", doc: GradingDoc{Title: "Election results certified"}, want: GradeHighly},
+		{name: "a singular query term matches its plural", text: "election", doc: GradingDoc{Title: "Elections were certified"}, want: GradeHighly},
+		{name: "a two-letter query term counts", text: "US", doc: GradingDoc{Title: "US economy slows"}, want: GradeHighly},
+		{name: "news is a query term", text: "fake news", doc: GradingDoc{Title: "Media roundup", Content: "The news cycle moved on."}, want: GradeRelevant},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.doc.ID = uuid.New()
+			got, err := s.Grade(ctx, GradingQuery{ID: "q1", Text: tt.text}, tt.doc)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

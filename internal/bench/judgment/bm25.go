@@ -3,7 +3,6 @@ package judgment
 import (
 	"context"
 	"math"
-	"sort"
 	"strings"
 
 	"github.com/tadjov/tusker/internal/bench/meta"
@@ -63,7 +62,7 @@ func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, er
 	df := map[string]int{}
 	totalLen := 0
 	for i, d := range docs {
-		c := tokenCounts(docText(d))
+		c := termCounts(docText(d))
 		counts[i] = c
 		for _, n := range c {
 			lengths[i] += n
@@ -120,27 +119,6 @@ func gradeFromNorm(norm float64) int {
 	default:
 		return GradeNotRelev
 	}
-}
-
-func tokenizeSlice(s string) []string {
-	set := tokenize(s)
-	out := make([]string, 0, len(set))
-	for t := range set {
-		out = append(out, t)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func tokenCounts(s string) map[string]int {
-	out := map[string]int{}
-	for _, raw := range tokenSplit.Split(strings.ToLower(s), -1) {
-		if len(raw) < 3 {
-			continue
-		}
-		out[raw]++
-	}
-	return out
 }
 
 func docText(d GradingDoc) string {

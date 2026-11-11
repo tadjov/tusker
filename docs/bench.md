@@ -301,6 +301,11 @@ comes from. `description` only explains the query to a reader. `bench pool` copi
 into each pool entry beside the description and refuses a query without one, and so does
 `bench judge` for every strategy except `manual`. `bench grade` shows the text first.
 
+`keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
+Unicode letters and digits, two runes or longer (`US` counts), each stemmed with Snowball
+English, the stemmer every engine uses, so `elections` matches `election`. A short stoplist
+(`the`, `of`, `and`, …) is dropped from the query's terms, never from the document.
+
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes
 precedence), and they never re-embed documents. Configure with `--pg`/`PG_CONNECTION_STRING`.
