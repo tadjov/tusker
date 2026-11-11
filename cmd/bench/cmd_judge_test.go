@@ -268,13 +268,8 @@ func (fx *judgeFixture) writePool(t *testing.T) {
 
 func (fx *judgeFixture) judge(t *testing.T, args ...string) error {
 	t.Helper()
-	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) {
-		return fx.articles, nil
-	})
-	cmd.SetOut(io.Discard)
-	cmd.SetErr(io.Discard)
-	cmd.SetArgs(append([]string{fx.track}, args...))
-	return cmd.ExecuteContext(context.Background())
+	_, err := fx.judgeOutput(t, args...)
+	return err
 }
 
 func (fx *judgeFixture) judgeOutput(t *testing.T, args ...string) (string, error) {

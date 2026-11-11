@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -288,8 +289,9 @@ func TestGrade_ScreenShowsAFilterBoundInUTC(t *testing.T) {
 	out, err := fx.grade(t, "q\n")
 
 	require.NoError(t, err)
-	assert.Contains(t, out, "published_after=2024-03-02")
-	assert.NotContains(t, out, "2024-03-01")
+	filters := regexp.MustCompile(`filters:\s+(.*)\n`).FindStringSubmatch(out)
+	require.Len(t, filters, 2, "no filters line in %q", out)
+	assert.Equal(t, "published_after=2024-03-02", filters[1])
 }
 
 // pgx scans published_at into the local zone; the screen shows the UTC date

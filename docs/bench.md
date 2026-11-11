@@ -304,7 +304,7 @@ query's description and filters, with each article's publisher domain beside its
 each filter bound in UTC, the instant the judges compare.
 
 `keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
-Unicode letters and digits, single letters included (`US`, and the `D` of `vitamin D`), each
+Unicode letters and digits of any length, so `US` and the `D` of `vitamin D` are terms, each
 stemmed with Snowball English (Porter2), so `elections` matches `election`. Stopwords are
 Postgres 18's `english.stop`, kept verbatim in `internal/bench/judgment/english.stop`:
 Snowball's 127-word English list, which holds the 33 words of
@@ -336,12 +336,14 @@ case, parentheses, quoted phrases, `AND` between adjacent operands, `NOT` bindin
 than `AND` and `AND` tighter than `OR`. A document for which the expression is false grades
 0, and negated operands never score. An operand holding only stopwords drops out of the
 expression, as `to_tsquery` drops a stopword. A single letter that is not a stopword stays a
-term, as it does in Postgres and Elasticsearch: `vitamin D AND deficiency` needs the `d`.
-Scoring ranks only the documents that
-pass, and `bm25` still counts every pooled document in its term statistics. A boolean text
-that does not parse fails the suite load, naming the query, so `bench validate` and
-`bench pool` refuse it; in a pool written before, the judges leave that query unjudged, as
-they do a query without terms. Elasticsearch's `query_string` reads lowercase operators as
+term, as it does in Postgres and Elasticsearch: `vitamin D AND deficiency` needs the `d`. A
+quoted operand is a phrase, read one field at a time like a `phrase` query; the native
+boolean API matches it with `search_vector @@ to_tsquery`, across title and description,
+and the hits that span a field boundary grade 0. Scoring ranks only the documents that pass,
+and `bm25` still counts every pooled document in its term statistics. A boolean text that
+does not parse fails the suite load, naming the query, so `bench validate` and `bench pool`
+refuse it; in a pool written before, the judges leave that query unjudged, as they do a
+query without terms. Elasticsearch's `query_string` reads lowercase operators as
 terms, ORs adjacent terms, and applies no AND-before-OR precedence, so an Elasticsearch
 boolean template matches the judge only with uppercase operators, an explicit `AND` or
 `default_operator: AND`, and parentheses wherever it mixes operators.
