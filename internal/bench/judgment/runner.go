@@ -122,7 +122,7 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 	var unusable []error
 	for _, entry := range pf.Queries {
 		ge, prog, err := r.gradeQuery(ctx, entry, prior[entry.QueryID])
-		if failsWholeQuery(err) {
+		if FailsWholeQuery(err) {
 			unusable = append(unusable, err)
 		} else if err != nil {
 			return nil, fmt.Errorf("grade query %q: %w", entry.QueryID, err)
@@ -202,7 +202,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 	} else {
 		gradedByID, err = r.gradeTodo(ctx, q, todo)
 	}
-	if err != nil && !failsWholeQuery(err) {
+	if err != nil && !FailsWholeQuery(err) {
 		return ge, prog, err
 	}
 
@@ -253,7 +253,7 @@ func (r *Runner) gradeWholePool(ctx context.Context, ps PoolStrategy, q GradingQ
 		return nil, ctxErr
 	}
 	var width *VectorWidthError
-	if errors.As(err, &width) || failsWholeQuery(err) {
+	if errors.As(err, &width) || FailsWholeQuery(err) {
 		return nil, err
 	}
 	gradedByID := make(map[uuid.UUID]int, len(results))
@@ -388,7 +388,7 @@ func (r *Runner) runPerDoc(ctx context.Context, s DocStrategy, q GradingQuery, d
 			defer func() { <-sem }()
 
 			grade, err := s.Grade(ctx, q, gd)
-			if failsWholeQuery(err) {
+			if FailsWholeQuery(err) {
 				mu.Lock()
 				queryErr = err
 				mu.Unlock()

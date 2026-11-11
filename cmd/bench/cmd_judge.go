@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -256,9 +255,7 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 	})
 
 	final, runErr := jrunner.Run(cmd.Context(), pf)
-	var noTerms *judgment.NoQueryTermsError
-	var unparsed *judgment.BooleanTextError
-	if runErr != nil && !errors.As(runErr, &noTerms) && !errors.As(runErr, &unparsed) {
+	if runErr != nil && !judgment.FailsWholeQuery(runErr) {
 		return fmt.Errorf("judge run: %w", runErr)
 	}
 

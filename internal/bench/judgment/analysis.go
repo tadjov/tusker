@@ -159,9 +159,9 @@ func (e *BooleanTextError) Error() string {
 
 func (e *BooleanTextError) Unwrap() error { return e.Err }
 
-// failsWholeQuery reports an error that is a property of the query, so its
-// docs stay unjudged and the other queries are still graded.
-func failsWholeQuery(err error) bool {
+// FailsWholeQuery reports an error that is a property of one query, so that
+// query's docs stay unjudged and the other queries are still graded.
+func FailsWholeQuery(err error) bool {
 	var noTerms *NoQueryTermsError
 	var unparsed *BooleanTextError
 	return errors.As(err, &noTerms) || errors.As(err, &unparsed)
