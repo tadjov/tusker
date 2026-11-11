@@ -1,6 +1,7 @@
 package judgment
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/kljensen/snowball/english"
 	"github.com/tadjov/tusker/internal/bench/suite"
-	"github.com/tadjov/tusker/internal/token"
 )
 
 // minTermRunes keeps two-letter terms such as "US" and "EU".
@@ -97,16 +97,31 @@ func (d analyzedDoc) holdsPhrase(phrase []string) bool {
 // the query, so every document fails the same way and no retry can fix it.
 type NoQueryTermsError struct {
 	QueryID string
-	// Reason is why the text yields no terms; empty when it simply has none.
-	Reason string
 }
 
 func (e *NoQueryTermsError) Error() string {
-	reason := ""
-	if e.Reason != "" {
-		reason = ": " + e.Reason
-	}
-	return fmt.Sprintf("query %q has no usable text%s (fix its text in the suite and re-pool, or set --strategy manual)", e.QueryID, reason)
+	return fmt.Sprintf("query %q has no usable text (fix its text in the suite and re-pool, or set --strategy manual)", e.QueryID)
+}
+
+// BooleanTextError reports a boolean query whose text does not parse, which,
+// like a query without terms, fails every document of the query.
+type BooleanTextError struct {
+	QueryID string
+	Err     error
+}
+
+func (e *BooleanTextError) Error() string {
+	return fmt.Sprintf("query %q: %v (fix its text in the suite and re-pool)", e.QueryID, e.Err)
+}
+
+func (e *BooleanTextError) Unwrap() error { return e.Err }
+
+// failsWholeQuery reports an error that is a property of the query, so its
+// docs stay unjudged and the other queries are still graded.
+func failsWholeQuery(err error) bool {
+	var noTerms *NoQueryTermsError
+	var unparsed *BooleanTextError
+	return errors.As(err, &noTerms) || errors.As(err, &unparsed)
 }
 
 // scoringTerms returns the distinct stems of the texts' words that are not
@@ -170,9 +185,13 @@ func readTermQuery(q GradingQuery) (termQuery, error) {
 	case suite.CategoryPhrase:
 		tq = termQuery{terms: scoringTerms(q.Text), gate: phraseMatcher(terms(q.Text))}
 	case suite.CategoryBoolean:
-		gate, positives, err := parseBoolean(q.Text)
+		expr, err := suite.ParseBoolean(q.Text)
 		if err != nil {
-			return termQuery{}, &NoQueryTermsError{QueryID: q.ID, Reason: err.Error()}
+			return termQuery{}, &BooleanTextError{QueryID: q.ID, Err: err}
+		}
+		gate, positives, err := booleanGate(expr)
+		if err != nil {
+			return termQuery{}, &BooleanTextError{QueryID: q.ID, Err: err}
 		}
 		tq = termQuery{terms: scoringTerms(positives...), gate: gate}
 	default:
@@ -223,124 +242,43 @@ func (m anyOf) matches(d analyzedDoc) bool {
 	return false
 }
 
-// parseBoolean reads text with the syntax the API's boolean search takes: AND,
-// OR and NOT in any case, parentheses, quoted phrases, and AND between
-// adjacent operands. NOT binds tighter than AND, and AND tighter than OR. It
-// returns the expression and the operands that are not negated.
-func parseBoolean(text string) (docMatcher, []string, error) {
-	tokenizer := token.NewBoolTokenizer()
-	tokens := tokenizer.Tokenize(text)
-	if err := tokenizer.Validate(tokens); err != nil {
-		return nil, nil, fmt.Errorf("boolean text %q: %w", text, err)
-	}
-	p := &booleanParser{tokens: tokens}
-	expr, err := p.or(false)
-	if err == nil && p.peek().Type != token.EOF {
-		err = fmt.Errorf("unexpected %q", p.peek().Value)
-	}
-	if err != nil {
-		return nil, nil, fmt.Errorf("boolean text %q: %w", text, err)
-	}
-	return expr, p.positives, nil
-}
-
-type booleanParser struct {
-	tokens    []token.Token
-	pos       int
-	positives []string
-}
-
-func (p *booleanParser) peek() token.Token { return p.tokens[p.pos] }
-
-func (p *booleanParser) next() token.Token {
-	tok := p.tokens[p.pos]
-	if tok.Type != token.EOF {
-		p.pos++
-	}
-	return tok
-}
-
-func (p *booleanParser) or(negated bool) (docMatcher, error) {
-	operands := anyOf{}
-	for {
-		operand, err := p.and(negated)
-		if err != nil {
-			return nil, err
+// booleanGate turns a parsed boolean text into the gate it sets and the
+// operands that are not negated.
+func booleanGate(expr suite.BooleanExpr) (docMatcher, []string, error) {
+	var positives []string
+	var build func(e suite.BooleanExpr, negated bool) (docMatcher, error)
+	build = func(e suite.BooleanExpr, negated bool) (docMatcher, error) {
+		switch e.Kind {
+		case suite.BooleanNot:
+			operand, err := build(e.Operands[0], !negated)
+			return notMatcher{operand: operand}, err
+		case suite.BooleanAnd, suite.BooleanOr:
+			operands := make([]docMatcher, len(e.Operands))
+			for i, operand := range e.Operands {
+				m, err := build(operand, negated)
+				if err != nil {
+					return nil, err
+				}
+				operands[i] = m
+			}
+			if e.Kind == suite.BooleanAnd {
+				return allOf(operands), nil
+			}
+			return anyOf(operands), nil
+		default:
+			phrase := terms(e.Operand)
+			if len(phrase) == 0 {
+				return nil, fmt.Errorf("operand %q has no terms", e.Operand)
+			}
+			if !negated {
+				positives = append(positives, e.Operand)
+			}
+			if len(phrase) == 1 {
+				return termMatcher(phrase[0]), nil
+			}
+			return phraseMatcher(phrase), nil
 		}
-		operands = append(operands, operand)
-		if p.peek().Type != token.OR {
-			break
-		}
-		p.next()
 	}
-	if len(operands) == 1 {
-		return operands[0], nil
-	}
-	return operands, nil
-}
-
-func (p *booleanParser) and(negated bool) (docMatcher, error) {
-	operands := allOf{}
-	for {
-		operand, err := p.unary(negated)
-		if err != nil {
-			return nil, err
-		}
-		operands = append(operands, operand)
-		switch p.peek().Type {
-		case token.AND:
-			p.next()
-			continue
-		case token.WORD, token.LPAREN, token.NOT:
-			continue
-		}
-		break
-	}
-	if len(operands) == 1 {
-		return operands[0], nil
-	}
-	return operands, nil
-}
-
-func (p *booleanParser) unary(negated bool) (docMatcher, error) {
-	if p.peek().Type == token.NOT {
-		p.next()
-		operand, err := p.unary(!negated)
-		if err != nil {
-			return nil, err
-		}
-		return notMatcher{operand: operand}, nil
-	}
-	return p.primary(negated)
-}
-
-func (p *booleanParser) primary(negated bool) (docMatcher, error) {
-	tok := p.next()
-	switch tok.Type {
-	case token.WORD:
-		phrase := terms(tok.Value)
-		if len(phrase) == 0 {
-			return nil, fmt.Errorf("operand %q has no terms", tok.Value)
-		}
-		if !negated {
-			p.positives = append(p.positives, tok.Value)
-		}
-		if len(phrase) == 1 {
-			return termMatcher(phrase[0]), nil
-		}
-		return phraseMatcher(phrase), nil
-	case token.LPAREN:
-		expr, err := p.or(negated)
-		if err != nil {
-			return nil, err
-		}
-		if p.next().Type != token.RPAREN {
-			return nil, fmt.Errorf("unclosed parenthesis")
-		}
-		return expr, nil
-	case token.EOF:
-		return nil, fmt.Errorf("ends where an operand belongs")
-	default:
-		return nil, fmt.Errorf("unexpected %q", tok.Value)
-	}
+	gate, err := build(expr, false)
+	return gate, positives, err
 }

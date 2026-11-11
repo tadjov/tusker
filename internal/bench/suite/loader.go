@@ -69,6 +69,11 @@ func Parse(data []byte) (*LoadedSuite, error) {
 				return nil, fmt.Errorf("query %q: %w", q.ID, err)
 			}
 		}
+		if q.Category == CategoryBoolean && q.Text != "" {
+			if _, err := ParseBoolean(q.Text); err != nil {
+				return nil, fmt.Errorf("query %q: %w", q.ID, err)
+			}
+		}
 		for engName, eq := range q.Engines {
 			if eq.Template != "" {
 				if _, ok := registry.Get(eq.Template); !ok {

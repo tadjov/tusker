@@ -312,8 +312,9 @@ the way the API's boolean search reads it: `AND`, `OR`, `NOT` in any case, paren
 quoted phrases, `AND` between adjacent operands, `NOT` binding tighter than `AND` and `AND`
 tighter than `OR`; a document for which the expression is false grades 0, and negated
 operands never score. Scoring ranks only the documents that pass, and `bm25` still counts
-every pooled document in its term statistics. A boolean text that does not parse leaves its
-query unjudged, as a query without terms does.
+every pooled document in its term statistics. A boolean text that does not parse fails the
+suite load, naming the query, so `bench validate` and `bench pool` refuse it; in a pool
+written before, the judges leave that query unjudged, as they do a query without terms.
 
 A query that filters declares it engine-neutrally, and every engine's statement for it
 applies the same filters:

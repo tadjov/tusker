@@ -292,3 +292,13 @@ func TestValidateOne_VectorQueryWithoutTextFails(t *testing.T) {
 	assert.Contains(t, row.detail, "text")
 	assert.Empty(t, validator.query, "a query without text was validated")
 }
+
+func TestValidate_BooleanTextThatDoesNotParseFailsNamingTheQuery(t *testing.T) {
+	tr := newLineageTrack(t, fakeCluster(t, map[string]*fakeIndex{"a": {count: 10}, "b": {count: 10}}))
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: first query\n", "    text: \"first AND (query\"\n    category: boolean\n")
+
+	_, err := execute(t, newValidateCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"q1"`)
+}

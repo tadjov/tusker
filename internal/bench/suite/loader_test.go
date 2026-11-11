@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 const validHeader = `schema_version: 1
@@ -356,4 +357,45 @@ func TestParse_RejectsAnUnknownCategoryNamingTheQuery(t *testing.T) {
 			assert.Contains(t, err.Error(), category)
 		})
 	}
+}
+
+func TestParse_RejectsABooleanTextThatDoesNotParseNamingTheQuery(t *testing.T) {
+	for _, text := range []string{"climate AND (politics", "climate AND", "OR climate", "NOT"} {
+		t.Run(text, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-bool
+    text: "` + text + `"
+    category: boolean
+    engines:
+      pg: "SELECT 1"
+`))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-bool"`)
+		})
+	}
+}
+
+func TestParse_KeepsTheTokenizersValidationErrorInTheChain(t *testing.T) {
+	_, err := Parse([]byte(validHeader + `queries:
+  - id: q-bool
+    text: "climate AND (politics"
+    category: boolean
+    engines:
+      pg: "SELECT 1"
+`))
+
+	var validation *apperr.ValidationError
+	assert.ErrorAs(t, err, &validation)
+}
+
+func TestParse_ReadsAParenthesisedBooleanText(t *testing.T) {
+	_, err := Parse([]byte(validHeader + `queries:
+  - id: q-bool
+    text: '(election OR "general vote") AND NOT football'
+    category: boolean
+    engines:
+      pg: "SELECT 1"
+`))
+
+	assert.NoError(t, err)
 }

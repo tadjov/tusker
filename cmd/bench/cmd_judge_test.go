@@ -612,3 +612,16 @@ func TestCheckResumeCompat_RefusesTheDeterministicJudgesV1Rubric(t *testing.T) {
 		})
 	}
 }
+
+func TestJudge_UnparsableBooleanTextFailsAfterWritingTheFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate AND (politics", "climate change summit")
+	fx.pool.Queries[0].Category = "boolean"
+	fx.writePool(t)
+
+	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged")
+
+	var unparsed *judgment.BooleanTextError
+	require.ErrorAs(t, err, &unparsed)
+	assert.Equal(t, "q1", unparsed.QueryID)
+	assert.Equal(t, judgment.GradeUnjudged, gradesByQuery(fx.annotations(t, "bm25"))["q1"][fx.pool.Queries[0].Docs[0].DocID])
+}

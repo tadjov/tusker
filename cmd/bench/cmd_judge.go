@@ -257,7 +257,8 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 
 	final, runErr := jrunner.Run(cmd.Context(), pf)
 	var noTerms *judgment.NoQueryTermsError
-	if runErr != nil && !errors.As(runErr, &noTerms) {
+	var unparsed *judgment.BooleanTextError
+	if runErr != nil && !errors.As(runErr, &noTerms) && !errors.As(runErr, &unparsed) {
 		return fmt.Errorf("judge run: %w", runErr)
 	}
 

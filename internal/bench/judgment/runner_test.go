@@ -328,3 +328,32 @@ func TestRunner_PoolQueryWithoutTextFailsBeforeGrading(t *testing.T) {
 	assert.Contains(t, err.Error(), `"q1"`)
 	assert.False(t, sunk, "no query may be graded once one has no text")
 }
+
+// A boolean text that does not parse is a property of its query, like one
+// without terms: that query stays unjudged and the others are graded.
+func TestRunner_UnparsableBooleanTextFailsTheRunAfterGradingTheRest(t *testing.T) {
+	pf, articles := buildPool(t, 3)
+	pf.Queries[0].QueryText = "title AND (unclosed"
+	pf.Queries[0].Category = "boolean"
+	usable := pool.PoolEntry{QueryID: "q2", QueryText: "title"}
+	for id := range articles {
+		usable.Docs = append(usable.Docs, pool.PooledDoc{DocID: id})
+	}
+	pf.Queries = append(pf.Queries, usable)
+
+	jf, err := NewRunner(RunnerConfig{Strategy: NewBM25Strategy(), Reader: &stubStorageReader{articles: articles}}).Run(context.Background(), pf)
+
+	var unparsed *BooleanTextError
+	require.ErrorAs(t, err, &unparsed)
+	assert.Equal(t, "q1", unparsed.QueryID)
+	require.NotNil(t, jf)
+	for _, qe := range jf.Queries {
+		for _, d := range qe.Docs {
+			if qe.QueryID == "q1" {
+				assert.Equal(t, GradeUnjudged, d.Grade)
+			} else {
+				assert.NotEqual(t, GradeUnjudged, d.Grade)
+			}
+		}
+	}
+}

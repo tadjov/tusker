@@ -88,9 +88,10 @@ func NewRunner(cfg RunnerConfig) *Runner {
 }
 
 // Run grades every pool entry and returns a complete JudgmentFile. A query with
-// no usable terms leaves its docs unjudged without stopping the others: Run
-// then returns the file together with an error that joins a NoQueryTermsError
-// per such query.
+// no usable terms, or with a boolean text that does not parse, leaves its docs
+// unjudged without stopping the others: Run then returns the file together
+// with an error that joins a NoQueryTermsError or BooleanTextError per such
+// query.
 func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 	if r.cfg.Strategy == nil {
 		return nil, fmt.Errorf("runner: strategy is nil")
@@ -121,8 +122,7 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 	var unusable []error
 	for _, entry := range pf.Queries {
 		ge, prog, err := r.gradeQuery(ctx, entry, prior[entry.QueryID])
-		var noTerms *NoQueryTermsError
-		if errors.As(err, &noTerms) {
+		if failsWholeQuery(err) {
 			unusable = append(unusable, err)
 		} else if err != nil {
 			return nil, fmt.Errorf("grade query %q: %w", entry.QueryID, err)
@@ -202,8 +202,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 	} else {
 		gradedByID, err = r.gradeTodo(ctx, q, todo)
 	}
-	var noTerms *NoQueryTermsError
-	if err != nil && !errors.As(err, &noTerms) {
+	if err != nil && !failsWholeQuery(err) {
 		return ge, prog, err
 	}
 
@@ -254,8 +253,7 @@ func (r *Runner) gradeWholePool(ctx context.Context, ps PoolStrategy, q GradingQ
 		return nil, ctxErr
 	}
 	var width *VectorWidthError
-	var noTerms *NoQueryTermsError
-	if errors.As(err, &width) || errors.As(err, &noTerms) {
+	if errors.As(err, &width) || failsWholeQuery(err) {
 		return nil, err
 	}
 	gradedByID := make(map[uuid.UUID]int, len(results))
@@ -370,8 +368,8 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 	return nil
 }
 
-// runPerDoc leaves a doc unjudged when its grade fails, except for a
-// NoQueryTermsError, which fails every doc of the query and is returned.
+// runPerDoc leaves a doc unjudged when its grade fails, except for an error
+// that fails every doc of the query, which is returned.
 func (r *Runner) runPerDoc(ctx context.Context, s DocStrategy, q GradingQuery, docs []GradingDoc, into map[uuid.UUID]int) error {
 	sem := make(chan struct{}, r.cfg.Concurrency)
 	var wg sync.WaitGroup
@@ -390,8 +388,7 @@ func (r *Runner) runPerDoc(ctx context.Context, s DocStrategy, q GradingQuery, d
 			defer func() { <-sem }()
 
 			grade, err := s.Grade(ctx, q, gd)
-			var noTerms *NoQueryTermsError
-			if errors.As(err, &noTerms) {
+			if failsWholeQuery(err) {
 				mu.Lock()
 				queryErr = err
 				mu.Unlock()

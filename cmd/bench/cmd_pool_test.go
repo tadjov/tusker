@@ -149,3 +149,15 @@ func TestPool_EntryCarriesTheQueryFilters(t *testing.T) {
 		"q2": {},
 	}, got)
 }
+
+func TestPool_BooleanTextThatDoesNotParseFailsNamingTheQuery(t *testing.T) {
+	cluster := fakeCluster(t, map[string]*fakeIndex{"a": {count: 10}, "b": {count: 10}})
+	tr := newLineageTrack(t, cluster)
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: first query\n", "    text: \"first AND (query\"\n    category: boolean\n")
+
+	_, err := execute(t, newPoolCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"q1"`)
+	assert.NoFileExists(t, tr.poolPath())
+}

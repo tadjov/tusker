@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 // termJudges grade one query's docs through each term judge's public
@@ -163,12 +164,21 @@ func TestTermJudges_RefuseABooleanTextThatDoesNotParse(t *testing.T) {
 		_, bm25Err := NewBM25Strategy().GradePool(context.Background(), q, []GradingDoc{doc})
 
 		for judge, err := range map[string]error{"keyword": keywordErr, "bm25": bm25Err} {
-			var noTerms *NoQueryTermsError
-			if !errors.As(err, &noTerms) || noTerms.QueryID != "q1" {
-				t.Errorf("%s on %q: err = %v, want a NoQueryTermsError for q1", judge, text, err)
+			var unparsed *BooleanTextError
+			if !errors.As(err, &unparsed) || unparsed.QueryID != "q1" {
+				t.Errorf("%s on %q: err = %v, want a BooleanTextError for q1", judge, text, err)
 			}
 		}
 	}
+}
+
+func TestTermJudges_KeepTheTokenizersValidationErrorInTheChain(t *testing.T) {
+	q := GradingQuery{ID: "q1", Text: "climate AND (politics", Category: "boolean"}
+
+	_, err := NewKeywordStrategy().Grade(context.Background(), q, GradingDoc{ID: uuid.New(), Title: "Climate"})
+
+	var validation *apperr.ValidationError
+	assert.ErrorAs(t, err, &validation)
 }
 
 func TestTermJudges_GradeTheQueryTextNeverTheDescription(t *testing.T) {
