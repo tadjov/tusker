@@ -444,7 +444,7 @@ func (s *gradingSession) show(ctx context.Context, position int) error {
 	printField(w, "title", a.Title)
 	printField(w, "publisher", publisher(a))
 	if !a.PublishedAt.IsZero() {
-		printField(w, "published", a.PublishedAt.Format("2006-01-02"))
+		printField(w, "published", a.PublishedAt.UTC().Format(time.DateOnly))
 	}
 	printField(w, "description", a.Description)
 	printField(w, "content", contentPreview(a.Content))

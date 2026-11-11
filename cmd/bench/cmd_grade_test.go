@@ -292,6 +292,22 @@ func TestGrade_ScreenShowsAFilterBoundInUTC(t *testing.T) {
 	assert.NotContains(t, out, "2024-03-01")
 }
 
+// pgx scans published_at into the local zone; the screen shows the UTC date
+// the filters compare against.
+func TestGrade_ScreenShowsThePublicationDateInUTC(t *testing.T) {
+	fx := newGradeFixture(t, 1, 1)
+	eastOfUTC := time.FixedZone("UTC+2", 2*60*60)
+	for id, a := range fx.articles {
+		a.PublishedAt = time.Date(2024, 3, 5, 23, 30, 0, 0, time.UTC).In(eastOfUTC)
+		fx.articles[id] = a
+	}
+
+	out, err := fx.grade(t, "q\n")
+
+	require.NoError(t, err)
+	assert.Regexp(t, `published:\s+2024-03-05\n`, out)
+}
+
 func TestGrade_ScreenShowsNoFiltersLineForAnUnfilteredQuery(t *testing.T) {
 	fx := newGradeFixture(t, 1, 1)
 
