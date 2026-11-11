@@ -38,7 +38,7 @@ func words(s string) []string {
 	return slices.DeleteFunc(tokens(s), func(t string) bool { return !isWord(t) })
 }
 
-// stem is Snowball English, the stemmer every engine analyses English with.
+// stem is Snowball English (Porter2).
 func stem(word string) string { return english.Stem(word, true) }
 
 // terms are the stems of s's words, in order: the analysis every term judge

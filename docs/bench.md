@@ -304,7 +304,7 @@ description and the query's filters, with each article's publisher domain beside
 
 `keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
 Unicode letters and digits, two runes or longer (`US` counts), each stemmed with Snowball
-English, the stemmer every engine uses, so `elections` matches `election`. A short stoplist
+English (Porter2), so `elections` matches `election`. A short stoplist
 (`the`, `of`, `and`, …) is dropped from the query's terms, never from the document.
 
 Both apply the query's category as a gate before scoring. A `phrase` query grades 0 unless
@@ -312,15 +312,18 @@ one field holds its stemmed words at the phrase's positions. Gate terms are anal
 Postgres analyses a phrase: a stopword or one-letter word leaves the phrase at either end,
 and inside it keeps its position and matches any word, so `war of words` needs `war`, any
 one word, then `words`, as `'war' <2> 'word'` does. A `boolean` query's text is parsed
-the way the API's boolean search reads it: `AND`, `OR`, `NOT` in any case, parentheses,
-quoted phrases, `AND` between adjacent operands, `NOT` binding tighter than `AND` and `AND`
-tighter than `OR`; a document for which the expression is false grades 0, and negated
+with `internal/token`'s grammar, read as the native Postgres boolean parser reads it: `AND`,
+`OR`, `NOT` in any case, parentheses, quoted phrases, `AND` between adjacent operands, `NOT`
+binding tighter than `AND` and `AND` tighter than `OR`; a document for which the expression is false grades 0, and negated
 operands never score. An operand holding only stopwords or one-letter words drops out of the
 expression, as `to_tsquery` drops a stopword, so `vitamin D AND deficiency` needs `vitamin`
 and `deficiency`. Scoring ranks only the documents that pass, and `bm25` still counts
 every pooled document in its term statistics. A boolean text that does not parse fails the
 suite load, naming the query, so `bench validate` and `bench pool` refuse it; in a pool
 written before, the judges leave that query unjudged, as they do a query without terms.
+Elasticsearch's `query_string` reads lowercase operators as terms and ORs adjacent terms, so
+an Elasticsearch boolean template matches the judge only with uppercase operators and an
+explicit `AND` or `default_operator: AND`.
 
 A query that filters declares it engine-neutrally, and every engine's statement for it
 applies the same filters:
