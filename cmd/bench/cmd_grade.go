@@ -434,7 +434,7 @@ func (s *gradingSession) show(ctx context.Context, position int) error {
 	}
 	fmt.Fprintf(w, "\n%s\n", cCyan.Sprint(header))
 	printField(w, "query", pair.query.QueryText)
-	printField(w, "description", pair.query.QueryDesc)
+	printField(w, "query description", pair.query.QueryDesc)
 	printField(w, "filters", formatFilters(pair.query.Filters))
 	if len(articles) == 0 {
 		printWarn(w, fmt.Sprintf("article %s is not in the store", pair.docID))
@@ -455,7 +455,7 @@ func printField(w io.Writer, label, value string) {
 	if value == "" {
 		return
 	}
-	fmt.Fprintf(w, "%s %s\n", cDim.Sprintf("%-12s", label+":"), value)
+	fmt.Fprintf(w, "%s %s\n", cDim.Sprintf("%-18s", label+":"), value)
 }
 
 // publisher shows the domain beside the name, since a publisher_domain filter
@@ -486,6 +486,7 @@ func formatFilters(f suite.Filters) string {
 }
 
 func formatFilterTime(t time.Time) string {
+	t = t.UTC()
 	if t.Equal(t.Truncate(24 * time.Hour)) {
 		return t.Format(time.DateOnly)
 	}

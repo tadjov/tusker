@@ -260,7 +260,7 @@ func TestGrade_ScreenShowsTheQueryAndTheArticle(t *testing.T) {
 
 	for _, want := range []string{
 		"query text 00",
-		"description: query intent 00",
+		"query description: query intent 00",
 		"publisher_domain=example.org",
 		"published_after=2024-03-01",
 		"published_before=2024-04-01T12:30:00Z",
@@ -275,6 +275,21 @@ func TestGrade_ScreenShowsTheQueryAndTheArticle(t *testing.T) {
 	assert.NotContains(t, out, "TAIL")
 	assert.Less(t, strings.Index(out, "query text 00"), strings.Index(out, "query intent 00"),
 		"the hand grader reads the query the judge grades before its description")
+}
+
+// The judge compares instants, so a bound written in another zone shows as
+// the UTC date it falls on.
+func TestGrade_ScreenShowsAFilterBoundInUTC(t *testing.T) {
+	fx := newGradeFixture(t, 1, 1)
+	fx.pool.Queries[0].Filters = suite.Filters{PublishedAfter: time.Date(2024, 3, 1, 22, 0, 0, 0, time.FixedZone("", -2*60*60))}
+	require.NoError(t, pool.WritePoolFile(fx.pool, filepath.Join(fx.track, "trec", "pool.yaml")))
+	fx.writeJudge(t, func(int) int { return judgment.GradeRelevant })
+
+	out, err := fx.grade(t, "q\n")
+
+	require.NoError(t, err)
+	assert.Contains(t, out, "published_after=2024-03-02")
+	assert.NotContains(t, out, "2024-03-01")
 }
 
 func TestGrade_ScreenShowsNoFiltersLineForAnUnfilteredQuery(t *testing.T) {
