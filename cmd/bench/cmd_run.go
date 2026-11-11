@@ -65,6 +65,8 @@ latest.json alone when the run failed:
   • it measured an engine the pool never saw
   • it sent a (query, engine) cell another request than the pool did, as
     after editing a template or a param
+  • a query's text, category or filters differ from its pool entry, which
+    is what the judges graded
   • the judgments leave pooled docs unjudged
   • an engine ranks an ungraded doc within the pool depth
 
@@ -443,7 +445,7 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments, suiteQ
 				len(cells), strings.Join(cells, ", ")))
 		}
 		if queries := rewrittenQueries(result, judgments.pool, suiteQueries); len(queries) > 0 {
-			failures = append(failures, fmt.Sprintf("%d queries have another text or filters than the pool holds, so their judgments grade another query: %s; re-pool and re-judge the track",
+			failures = append(failures, fmt.Sprintf("%d queries have another text, category or filters than the pool holds, so their judgments grade another query: %s; re-pool and re-judge the track",
 				len(queries), strings.Join(queries, ", ")))
 		}
 	}
@@ -491,8 +493,9 @@ func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []
 	return slices.Sorted(maps.Keys(changed))
 }
 
-// rewrittenQueries lists, sorted, the measured pooled queries whose text or
-// filters the suite no longer reads as the pool entry the judges graded.
+// rewrittenQueries lists, sorted, the measured pooled queries whose text,
+// category or filters the suite no longer reads as the pool entry the judges
+// graded.
 func rewrittenQueries(result *runner.BenchmarkResult, pf *pool.PoolFile, suiteQueries map[string]suite.Query) []string {
 	pooled := make(map[string]pool.PoolEntry, len(pf.Queries))
 	for _, entry := range pf.Queries {
@@ -503,7 +506,7 @@ func rewrittenQueries(result *runner.BenchmarkResult, pf *pool.PoolFile, suiteQu
 		for _, queryID := range jr.QueryOrder {
 			entry, wasPooled := pooled[queryID]
 			q, inSuite := suiteQueries[queryID]
-			if wasPooled && inSuite && (entry.QueryText != q.Text || !entry.Filters.Equal(q.Filters)) {
+			if wasPooled && inSuite && (entry.QueryText != q.Text || entry.Category != q.Category || !entry.Filters.Equal(q.Filters)) {
 				rewritten[queryID] = true
 			}
 		}

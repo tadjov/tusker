@@ -25,6 +25,7 @@ func TestRun_QueryRewrittenSincePoolingFailsTheRun(t *testing.T) {
 	}{
 		{name: "its text", from: "    text: first query\n", to: "    text: first query, edited\n"},
 		{name: "its filters", from: "    text: first query\n", to: "    text: first query\n    filters: { publisher_domain: reuters.com }\n"},
+		{name: "its category", from: "    text: first query\n", to: "    text: first query\n    category: phrase\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
