@@ -75,9 +75,10 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 			query: GradingQuery{ID: "q", Text: "global warming", Category: "phrase"},
 			docs: []GradingDoc{
 				{ID: uuid.New(), Title: "A global summit", Description: "Warming oceans"},
+				{ID: uuid.New(), Title: "Markets go global", Description: "Warming oceans worry insurers"},
 				{ID: uuid.New(), Title: "Summit", Description: "Global warming talks"},
 			},
-			zero:     []string{"A global summit"},
+			zero:     []string{"A global summit", "Markets go global"},
 			positive: []string{"Summit"},
 		},
 		{
@@ -104,6 +105,13 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 				GradingDoc{ID: uuid.New(), Title: "Energy prices", Content: "Energy costs and energy bills"}),
 			zero:     []string{"Energy politics"},
 			positive: []string{"Climate politics", "Energy prices"},
+		},
+		{
+			name:     "NOT negates only its own operand",
+			query:    GradingQuery{ID: "q", Text: "NOT politics climate", Category: "boolean"},
+			docs:     titled("Climate report", "Climate politics", "Football results"),
+			zero:     []string{"Climate politics", "Football results"},
+			positive: []string{"Climate report"},
 		},
 		{
 			name:     "adjacent operands are ANDed",
@@ -201,6 +209,27 @@ func TestBM25GradePool_GateLeavesPassingDocsGradesUnchanged(t *testing.T) {
 	assert.Greater(t, ungated["Warming of global markets"], GradeNotRelev)
 	for _, passing := range []string{"Global warming accelerates", "Global warming"} {
 		assert.Equal(t, ungated[passing], gated[passing], "%q", passing)
+	}
+}
+
+// The gated-out docs hold "global" but not "warming", so they count toward
+// N and df(global). Every doc is three terms long, so avgdl = 3 either way.
+// Over the whole pool, N = 6, df(global) = 5 and df(warm) = 1, so
+// idf(global) = ln(1 + 1.5/5.5) = 0.241 and idf(warm) = ln(1 + 5.5/1.5) = 1.540;
+// the admitted doc holds global once and warming twice at average length, so
+// its norm is (0.241·1 + 1.540·2·2.5/3.5) / (2.5·1.781) = 0.548, grade 3. Over
+// the admitted doc and the empty one alone, both idfs are ln 2 and the norm
+// is (1 + 1.429) / 5 = 0.486, grade 2.
+func TestBM25GradePool_GatedOutDocsStillCountInTheTermStatistics(t *testing.T) {
+	admitted := GradingDoc{ID: uuid.New(), Title: "Global warming", Content: "warming"}
+	docs := append([]GradingDoc{admitted},
+		titled("Global markets rally", "Global stocks rally", "Global bonds rally", "Global trade rally", "Weather report today")...)
+
+	got := termJudges["bm25"](t, GradingQuery{ID: "q", Text: "global warming", Category: "phrase"}, docs)
+
+	assert.Equal(t, GradeHighly, got["Global warming"])
+	for _, gated := range []string{"Global markets rally", "Global stocks rally", "Global bonds rally", "Global trade rally"} {
+		assert.Equal(t, GradeNotRelev, got[gated], "%q", gated)
 	}
 }
 

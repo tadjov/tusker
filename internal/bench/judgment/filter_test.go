@@ -52,7 +52,17 @@ func TestTermJudges_GradeADocViolatingADeclaredFilterZero(t *testing.T) {
 			positive: []string{"Climate summit in February"},
 		},
 		{
-			name:    "no publication date under a date filter",
+			name:    "no publication date under published_after",
+			filters: suite.Filters{PublishedAfter: time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)},
+			docs: []GradingDoc{
+				article("Climate summit undated", "reuters.com", time.Time{}),
+				article("Climate summit in March", "reuters.com", march),
+			},
+			zero:     []string{"Climate summit undated"},
+			positive: []string{"Climate summit in March"},
+		},
+		{
+			name:    "no publication date under published_before",
 			filters: suite.Filters{PublishedBefore: time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)},
 			docs: []GradingDoc{
 				article("Climate summit undated", "reuters.com", time.Time{}),

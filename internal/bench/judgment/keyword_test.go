@@ -52,8 +52,10 @@ func TestKeywordStrategy_Grade(t *testing.T) {
 	})
 
 	t.Run("empty query errors so runner records as unjudged", func(t *testing.T) {
-		_, err := s.Grade(ctx, GradingQuery{}, GradingDoc{Title: "anything"})
-		assert.ErrorContains(t, err, "no usable text")
+		_, err := s.Grade(ctx, GradingQuery{ID: "q-empty"}, GradingDoc{Title: "anything"})
+		var noTerms *NoQueryTermsError
+		assert.ErrorAs(t, err, &noTerms)
+		assert.Equal(t, "q-empty", noTerms.QueryID)
 	})
 }
 

@@ -131,7 +131,7 @@ func TestVector_RejectsBatchSize(t *testing.T) {
 		BatchSize: 5,
 	}).Run(context.Background(), pf)
 
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "vector grades each query's whole pool at once and takes no batch size")
 }
 
 func TestVectorDescribe(t *testing.T) {

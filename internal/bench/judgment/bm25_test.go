@@ -275,32 +275,69 @@ func TestBM25GradePool_WorkedThresholdCases(t *testing.T) {
 	}
 }
 
-// Both pools hold 20 docs: the doc under test and one rival, each 100 terms
-// long and holding climate, and 18 one-term docs without it. N = 20,
-// df(climate) = 2 and avgdl = 218/20 = 10.9 in both, so the doc under test
-// scores the same in both. In the first pool the rival holds climate once and
-// ties it; in the second it holds climate 80 times and scores
-// (80/(80+K)) / (1/(1+K)) = 10.3 times as much, with K = 1.5·(0.25+0.75·100/10.9).
-func TestBM25GradePool_GradeIgnoresHowFarTheBestDocOutscoresIt(t *testing.T) {
-	filler := func(n int) string { return strings.TrimSpace(strings.Repeat("filler ", n)) }
-	underTest := GradingDoc{ID: uuid.New(), Title: "climate", Content: filler(99)}
-	pool := func(rivalClimates int) []GradingDoc {
-		rival := GradingDoc{
-			ID:      uuid.New(),
-			Title:   strings.TrimSpace(strings.Repeat("climate ", rivalClimates)),
-			Content: filler(100 - rivalClimates),
-		}
-		docs := []GradingDoc{underTest, rival}
-		for range 18 {
-			docs = append(docs, GradingDoc{ID: uuid.New(), Title: "sport"})
-		}
-		return docs
+// Every term once in a doc three quarters of average length (3 terms against
+// avgdl 16/4 = 4) has the norm 1/(1+K) with K = 1.5·(0.25+0.75·0.75) = 1.219:
+// 0.451, under the 0.50 grade 3 needs.
+func TestBM25GradePool_EveryTermOnceInAShortDocGradesRelevant(t *testing.T) {
+	short := GradingDoc{ID: uuid.New(), Title: "climate change alpha"}
+	docs := []GradingDoc{
+		short,
+		{ID: uuid.New(), Title: "omega sigma kappa lambda"},
+		{ID: uuid.New(), Title: "gamma delta epsilon zeta"},
+		{ID: uuid.New(), Title: "theta iota beta rho mu"},
 	}
 
-	tied := bm25Grades(t, "climate", pool(1))[underTest.ID]
-	outscored := bm25Grades(t, "climate", pool(80))[underTest.ID]
+	got := bm25Grades(t, "climate change", docs)
 
-	if tied != outscored {
-		t.Errorf("grade %d when the best doc ties it, %d when the best doc scores 10x it", tied, outscored)
+	if got[short.ID] != GradeRelevant {
+		t.Errorf("%q graded %d, want %d", short.Title, got[short.ID], GradeRelevant)
+	}
+}
+
+// In each case both pools hold the same N docs, the doc under test and a rival
+// holding climate in a 100-term doc plus one-term docs without it, so N,
+// df(climate) = 2 and avgdl are the same in both, and so is the doc's norm.
+// Only how often the rival holds climate changes: once, which the doc under
+// test ties or beats, or 80 times.
+//
+// A 100-term doc among 18 one-term docs: avgdl = 10.9, K = 10.70, norm 0.086,
+// and the rival at 80 scores 10.3 times it. A 10-term doc among 8: avgdl = 11.8,
+// K = 1.328, norm 0.430, grade 2, and pool-max normalisation would grade it 3
+// beside the single-mention rival and 2 beside the other.
+func TestBM25GradePool_GradeIgnoresHowFarTheBestDocOutscoresIt(t *testing.T) {
+	filler := func(n int) string { return strings.TrimSpace(strings.Repeat("filler ", n)) }
+	tests := []struct {
+		name     string
+		length   int
+		shortDoc int
+		want     int
+	}{
+		{name: "the best doc scores 10 times it", length: 100, shortDoc: 18, want: GradeNotRelev},
+		{name: "a relevant doc", length: 10, shortDoc: 8, want: GradeRelevant},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			underTest := GradingDoc{ID: uuid.New(), Title: "climate", Content: filler(tt.length - 1)}
+			pool := func(rivalClimates int) []GradingDoc {
+				rival := GradingDoc{
+					ID:      uuid.New(),
+					Title:   strings.TrimSpace(strings.Repeat("climate ", rivalClimates)),
+					Content: filler(100 - rivalClimates),
+				}
+				docs := []GradingDoc{underTest, rival}
+				for range tt.shortDoc {
+					docs = append(docs, GradingDoc{ID: uuid.New(), Title: "sport"})
+				}
+				return docs
+			}
+
+			tied := bm25Grades(t, "climate", pool(1))[underTest.ID]
+			outscored := bm25Grades(t, "climate", pool(80))[underTest.ID]
+
+			if tied != tt.want || outscored != tt.want {
+				t.Errorf("grade %d beside a rival holding climate once, %d beside one holding it 80 times; want %d both",
+					tied, outscored, tt.want)
+			}
+		})
 	}
 }
