@@ -26,10 +26,9 @@ type BooleanExpr struct {
 	Operands []BooleanExpr
 }
 
-// ParseBoolean reads text with internal/token's grammar, as the native
-// Postgres boolean parser reads it: AND, OR and NOT in any case, parentheses,
-// quoted phrases, and AND between adjacent operands. NOT binds tighter than
-// AND, and AND tighter than OR.
+// ParseBoolean reads text with internal/token's grammar: AND, OR and NOT in any
+// case, parentheses, quoted phrases, and AND between adjacent operands. NOT
+// binds tighter than AND, and AND tighter than OR.
 func ParseBoolean(text string) (BooleanExpr, error) {
 	tokenizer := token.NewBoolTokenizer()
 	tokens := tokenizer.Tokenize(text)
