@@ -463,6 +463,7 @@ The report is always written. A run fails, exits non-zero and leaves `reports/la
 - it ran a query the pool holds no entry for
 - it measured an engine the pool never saw
 - a (query, engine) cell's request differs from the one the pool recorded, or the pool records none, as after editing a template, a declared param or a query's params; the error names the cells (`q07/pg`). `--latency-only` skips this check
+- a query's `text` or `filters` differ from its pool entry, which is what the judges graded; the error names the queries. Editing only a description passes. `--latency-only` skips this check
 - the judgments leave pooled docs unjudged
 - an engine ranks a doc with no grade within the pool depth (`meta.pool_depth`). With requests unchanged this happens only when the corpus changed or a rank tie broke differently; the error counts the docs and names the cells
 

@@ -20,6 +20,7 @@ import (
 	"github.com/tadjov/tusker/internal/bench/report"
 	"github.com/tadjov/tusker/internal/bench/runner"
 	"github.com/tadjov/tusker/internal/bench/spec"
+	"github.com/tadjov/tusker/internal/bench/suite"
 	"github.com/tadjov/tusker/internal/bench/trackctx"
 )
 
@@ -228,7 +229,11 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		LatencyOnly:  f.latencyOnly,
 		EngineParams: declaredEngineParams(bs),
 	}
-	failures := runFailures(result, judgments)
+	suiteQueries, err := loadSuiteQueries(bs)
+	if err != nil {
+		return err
+	}
+	failures := runFailures(result, judgments, suiteQueries)
 	rpt.Settings.Incomplete = append(slices.Clone(failures),
 		specConformance{
 			specOverridden:      f.specPath != "",
@@ -416,7 +421,7 @@ func poolCoverage(pf *pool.PoolFile, grades map[string]map[string]int) judgmentC
 }
 
 // runFailures lists why a finished run cannot stand as the track's result.
-func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []string {
+func runFailures(result *runner.BenchmarkResult, judgments *runJudgments, suiteQueries map[string]suite.Query) []string {
 	var failures []string
 	if cells := measuredDroppedCells(result, judgments.pool.Meta.DroppedExecutions); len(cells) > 0 {
 		failures = append(failures, fmt.Sprintf("the pool holds no documents for %d measured (query, engine) executions, so their hits score as non-relevant: %s; re-pool without --allow-partial",
@@ -433,6 +438,10 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 		if cells := changedRequests(result, judgments); len(cells) > 0 {
 			failures = append(failures, fmt.Sprintf("%d (query, engine) requests are not the ones the pool sent, so their judgments grade another query: %s; re-pool and re-judge the track",
 				len(cells), strings.Join(cells, ", ")))
+		}
+		if queries := rewrittenQueries(result, judgments.pool, suiteQueries); len(queries) > 0 {
+			failures = append(failures, fmt.Sprintf("%d queries have another text or filters than the pool holds, so their judgments grade another query: %s; re-pool and re-judge the track",
+				len(queries), strings.Join(queries, ", ")))
 		}
 	}
 	if missing := unpooledQueries(result, judgments.coverage.pooledQueries); len(missing) > 0 {
@@ -477,6 +486,41 @@ func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []
 		}
 	}
 	return slices.Sorted(maps.Keys(changed))
+}
+
+// rewrittenQueries lists, sorted, the measured pooled queries whose text or
+// filters the suite no longer reads as the pool entry the judges graded.
+func rewrittenQueries(result *runner.BenchmarkResult, pf *pool.PoolFile, suiteQueries map[string]suite.Query) []string {
+	pooled := make(map[string]pool.PoolEntry, len(pf.Queries))
+	for _, entry := range pf.Queries {
+		pooled[entry.QueryID] = entry
+	}
+	rewritten := make(map[string]bool)
+	for _, jr := range result.Jobs {
+		for _, queryID := range jr.QueryOrder {
+			entry, wasPooled := pooled[queryID]
+			q, inSuite := suiteQueries[queryID]
+			if wasPooled && inSuite && (entry.QueryText != q.Text || !entry.Filters.Equal(q.Filters)) {
+				rewritten[queryID] = true
+			}
+		}
+	}
+	return slices.Sorted(maps.Keys(rewritten))
+}
+
+// loadSuiteQueries reads the queries of every suite the spec's jobs run, by id.
+func loadSuiteQueries(bs *spec.BenchSpec) (map[string]suite.Query, error) {
+	queries := make(map[string]suite.Query)
+	for _, path := range loadedSuitePaths(bs) {
+		ls, err := suite.LoadFromFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("load suite %s: %w", path, err)
+		}
+		for _, q := range ls.Suite.Queries {
+			queries[q.ID] = q
+		}
+	}
+	return queries, nil
 }
 
 // retrievedWithoutGrade counts the unpooled (query, doc) pairs ranked within the

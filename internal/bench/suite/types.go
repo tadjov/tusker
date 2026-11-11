@@ -67,6 +67,13 @@ type Filters struct {
 	PublishedBefore time.Time `yaml:"published_before,omitempty"`
 }
 
+// Equal compares the bounds as instants, whatever zone each was written in.
+func (f Filters) Equal(other Filters) bool {
+	return f.PublisherDomain == other.PublisherDomain &&
+		f.PublishedAfter.Equal(other.PublishedAfter) &&
+		f.PublishedBefore.Equal(other.PublishedBefore)
+}
+
 // check refuses a publisher domain no article carries: an article's is its
 // url's lowercase eTLD+1.
 func (f Filters) check() error {
