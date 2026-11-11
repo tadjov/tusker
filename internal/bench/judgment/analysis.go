@@ -172,10 +172,7 @@ func FailsWholeQuery(err error) bool {
 
 // scoringTerms returns the texts' distinct terms, sorted.
 func scoringTerms(texts ...string) []string {
-	var out []string
-	for _, text := range texts {
-		out = append(out, terms(text)...)
-	}
+	out := terms(strings.Join(texts, " "))
 	slices.Sort(out)
 	return slices.Compact(out)
 }
