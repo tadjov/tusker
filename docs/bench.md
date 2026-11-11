@@ -288,7 +288,7 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 |--------------|-----------|----------|----------------------------------------------------------|
 | `keyword`    | Heuristic | ✅        | Token-overlap baseline — fast, deterministic, no network |
 | `bm25`       | Heuristic | ✅        | Pool-local Okapi BM25 over its score bound → grade       |
-| `vector`     | Heuristic | ✅        | Cosine similarity; doc vectors from the store → grade    |
+| `vector`     | Heuristic | ✅        | The pool's 10 docs nearest the query grade 3, the rest 0 |
 | `hybrid`     | Heuristic | ✅        | Weighted BM25 + vector fusion → grade                    |
 | `claude-cli` | LLM       | ✅        | `claude -p` subprocess per batch                         |
 | `claude-api` | LLM       | ✅        | Anthropic Messages API per batch                         |
@@ -329,6 +329,15 @@ filters:
 date fails either, as a comparison against a NULL `published_at` does. `bench pool` copies the
 filters into the pool entry, and `keyword` and `bm25` grade an article that violates one 0,
 the same gate as the category's. `vector` and `hybrid` do not read them.
+
+`vector` grades the semantic track as recall against exact search. Every vector engine
+searches the same model's vectors, so the question is how much of exact search's top 10 each
+engine finds. The judge grades the 10 pooled documents nearest the query by cosine 3, ties
+broken by the lower id, and every other pooled document 0; it reads the whole pool of a query
+at once and takes no `--batch`. The semantic track pools the exact pgvector arm at depth ≥ 10,
+so the pool's top 10 is the exact top 10, and `R@10` in the report is recall@10 against exact
+search. A pooled document without a stored vector stays unjudged. `hybrid` keeps its graded
+fusion.
 
 `bm25` divides a document's score by Σ (k1 + 1)·idf(t) over the query's scoring terms, the
 bound each term's contribution stays under, so the norm lies in [0, 1) and a grade depends on
@@ -388,8 +397,8 @@ Each pool entry records, under `request_digests`, a sha256 per engine of the req
 Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: `trec/annotations.<S>.yaml`, with `graded_count` and `unjudged_count` in its meta block. The command writes the file and then exits non-zero when any pooled doc is left unjudged (`manual` excepted).
 
 Key flags:
-- `--resume` — skip docs already graded (errors if the strategy, provider, model, prompt version or rubric version changed). `bm25` and `hybrid` skip only fully graded queries and regrade any other query whole, since their grades are relative to the pool
-- `--batch N` — override LLM batch size (`bm25` and `hybrid` grade each query's whole pool at once and refuse it)
+- `--resume` — skip docs already graded (errors if the strategy, provider, model, prompt version or rubric version changed). `bm25`, `vector` and `hybrid` skip only fully graded queries and regrade any other query whole, since they grade the whole pool at once
+- `--batch N` — override LLM batch size (`bm25`, `vector` and `hybrid` grade each query's whole pool at once and refuse it)
 - `--concurrency N` — parallel Grade calls (per-doc mode)
 - `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged. A query with no usable terms still fails the run
 - `--force` — `manual` only: rewrite the placeholders from scratch. Without it, `manual` keeps every existing hand grade, adds `-1` placeholders for new pool docs, and refuses a file another judge wrote

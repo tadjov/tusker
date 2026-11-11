@@ -58,8 +58,9 @@ func newJudgeCmdWithReader(openReader articleReaderOpener) *cobra.Command {
 
   keyword     — deterministic token-overlap baseline (no network, no LLM)
   bm25        — pool-local Okapi BM25 (no network; rewards rare terms)
-  vector      — cosine similarity; doc vectors from PG (--pg), query vectors
-                from trec/query-vectors, else Ollama (EMBEDDING_BASE_URL)
+  vector      — the pool's ten docs nearest the query by cosine grade 3, the
+                rest 0; doc vectors from PG (--pg), query vectors from
+                trec/query-vectors, else Ollama (EMBEDDING_BASE_URL)
   hybrid      — BM25 + vector fusion, vectors as for vector
   llm         — LLM-as-judge, batched; pick the endpoint with --provider
   manual      — writes grade:-1 placeholders for hand grading; re-running keeps
@@ -81,7 +82,7 @@ Multiple strategies live side-by-side; switch which one bench run scores
 against via --judgments <name>.
 
 Resumable: re-run with the same --strategy and --resume to skip docs already
-graded. bm25 and hybrid grade relative to the whole pool, so they skip only
+graded. bm25, vector and hybrid grade the whole pool at once, so they skip only
 queries that are fully graded and regrade the rest whole. Atomic writes mean
 Ctrl-C is safe.`,
 		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy keyword
@@ -100,7 +101,7 @@ Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.pg, "pg", "", "Postgres connection (or set PG_CONNECTION_STRING)")
 	cmd.Flags().IntVar(&f.concurrency, "concurrency", 4, "Parallel Grade calls (per-doc strategies)")
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
-	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output; bm25 and hybrid skip only fully graded queries")
+	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output; bm25, vector and hybrid skip only fully graded queries")
 	cmd.Flags().BoolVar(&f.allowUnjudged, "allow-unjudged", false, "Exit 0 even when some pooled docs end unjudged; a query with no usable terms still fails")
 	cmd.Flags().BoolVar(&f.force, "force", false, "Manual only: discard existing hand grades and rewrite the placeholders")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")

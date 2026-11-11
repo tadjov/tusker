@@ -469,36 +469,45 @@ func TestJudge_ForceOutsideManualIsRejected(t *testing.T) {
 }
 
 // The judge grades with the package's query vectors, as pool and run rank with
-// them: the Ollama here answers with the opposite vector.
+// them: the Ollama here answers with the opposite vector. The pool holds one
+// doc stored at the package's vector and ten at the opposite one, so only the
+// package's vector puts that doc among the ten nearest.
 func TestJudge_VectorGradesWithTheTracksQueryVectors(t *testing.T) {
 	ctx := context.Background()
 	container := pkgtesting.NewPGContainerWithCleanup(ctx, t)
 	track := queryVectorsTrack(t, container.ConnString)
 	const queryText = "central bank interest rates"
 	queryVector := packageQueryVector(t, track, queryText)
-
-	docID := uuid.New()
-	conn, err := pgx.Connect(ctx, container.ConnString)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = conn.Close(ctx) })
-	_, err = conn.Exec(ctx, `INSERT INTO articles (id, url, title, content, language) VALUES ($1, $2, $3, $4, $5)`,
-		docID, "https://example.com/rates", "rates", "content", "eng")
-	require.NoError(t, err)
-	_, err = conn.Exec(ctx, `INSERT INTO article_embeddings (article_id, model_name, embedding) VALUES ($1, $2, $3)`,
-		docID, queryVectorsFixtureTag, pgvector.NewVector(queryVector))
-	require.NoError(t, err)
-
-	fx := &judgeFixture{track: track, articles: articleStore{docID: document.Article{ID: docID, Title: "rates"}}}
-	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{
-		{QueryID: "q2", QueryText: queryText, Docs: []pool.PooledDoc{{DocID: docID}}},
-	}}
-	fx.writePool(t)
-
-	var ollamaCalls atomic.Int32
 	opposite := make([]float32, len(queryVector))
 	for i, v := range queryVector {
 		opposite[i] = -v
 	}
+
+	conn, err := pgx.Connect(ctx, container.ConnString)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close(ctx) })
+	fx := &judgeFixture{track: track, articles: articleStore{}}
+	entry := pool.PoolEntry{QueryID: "q2", QueryText: queryText}
+	store := func(vector []float32) uuid.UUID {
+		id := uuid.New()
+		_, err := conn.Exec(ctx, `INSERT INTO articles (id, url, title, content, language) VALUES ($1, $2, $3, $4, $5)`,
+			id, "https://example.com/"+id.String(), "rates", "content", "eng")
+		require.NoError(t, err)
+		_, err = conn.Exec(ctx, `INSERT INTO article_embeddings (article_id, model_name, embedding) VALUES ($1, $2, $3)`,
+			id, queryVectorsFixtureTag, pgvector.NewVector(vector))
+		require.NoError(t, err)
+		fx.articles[id] = document.Article{ID: id, Title: "rates"}
+		entry.Docs = append(entry.Docs, pool.PooledDoc{DocID: id})
+		return id
+	}
+	docID := store(queryVector)
+	for range 10 {
+		store(opposite)
+	}
+	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{entry}}
+	fx.writePool(t)
+
+	var ollamaCalls atomic.Int32
 	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		ollamaCalls.Add(1)
 		_ = json.NewEncoder(w).Encode(map[string]any{"embedding": opposite})
