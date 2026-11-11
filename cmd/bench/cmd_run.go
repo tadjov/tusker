@@ -444,7 +444,9 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments, suiteQ
 			failures = append(failures, fmt.Sprintf("%d (query, engine) requests are not the ones the pool sent, so their judgments grade another query: %s; re-pool and re-judge the track",
 				len(cells), strings.Join(cells, ", ")))
 		}
-		if queries := rewrittenQueries(result, judgments.pool, suiteQueries); len(queries) > 0 {
+		if poolPredatesQueryText(judgments.pool) {
+			failures = append(failures, "the pool predates query text, so its judgments graded no query's text; re-pool and re-judge the track")
+		} else if queries := rewrittenQueries(result, judgments.pool, suiteQueries); len(queries) > 0 {
 			failures = append(failures, fmt.Sprintf("%d queries have another text, category or filters than the pool holds, so their judgments grade another query: %s; re-pool and re-judge the track",
 				len(queries), strings.Join(queries, ", ")))
 		}
@@ -491,6 +493,12 @@ func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []
 		}
 	}
 	return slices.Sorted(maps.Keys(changed))
+}
+
+// poolPredatesQueryText reports a pool written before entries carried the query
+// text, which bench pool now refuses to write without.
+func poolPredatesQueryText(pf *pool.PoolFile) bool {
+	return slices.ContainsFunc(pf.Queries, func(entry pool.PoolEntry) bool { return entry.QueryText == "" })
 }
 
 // rewrittenQueries lists, sorted, the measured pooled queries whose text,

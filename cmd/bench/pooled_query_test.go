@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/pool"
 )
 
 // The judges graded each query's text and filters as pooled, so a run against
@@ -44,6 +45,23 @@ func TestRun_QueryRewrittenSincePoolingFailsTheRun(t *testing.T) {
 			assertLatestUnchanged(t, tr, before)
 		})
 	}
+}
+
+func TestRun_PoolOlderThanQueryTextAsksForARepool(t *testing.T) {
+	tr := templatedTrack(t)
+	pf := tr.pool(t)
+	for i := range pf.Queries {
+		pf.Queries[i].QueryText = ""
+	}
+	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))
+	tr.judgeEveryPooledDoc(t, pf, 1)
+
+	_, err := execute(t, newRunCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "the pool predates query text")
+	assert.Contains(t, err.Error(), "re-pool and re-judge the track")
+	assert.NotContains(t, err.Error(), "another text")
 }
 
 func TestRun_QueryWhoseDescriptionAloneChangedRunsClean(t *testing.T) {
