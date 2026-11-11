@@ -428,7 +428,7 @@ func (s *gradingSession) show(ctx context.Context, position int) error {
 	w := s.out
 	header := fmt.Sprintf("── %d/%d ── %s", position+1, len(s.walk), pair.query.QueryID)
 	if pair.query.Category != "" {
-		header += " · " + pair.query.Category
+		header += " · " + string(pair.query.Category)
 	}
 	fmt.Fprintf(w, "\n%s\n", cCyan.Sprint(header))
 	printField(w, "query", pair.query.QueryText)

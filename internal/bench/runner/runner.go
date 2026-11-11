@@ -451,7 +451,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				engName: engName,
 				qr: QueryResult{
 					QueryID:       q.ID,
-					Category:      q.Category,
+					Category:      string(q.Category),
 					EngineName:    engName,
 					RequestDigest: digest,
 					Scores:        scores,

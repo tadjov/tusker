@@ -48,13 +48,12 @@ type Query struct {
 	// Text is the query as a user would type it: what the deterministic judges
 	// grade and what a vector engine's query embedding is looked up by.
 	// Description is metadata for the reader.
-	Text        string `yaml:"text,omitempty"`
-	Description string `yaml:"description"`
-	// Category drives per-category aggregation and the judge's grading rule.
-	Category  string                 `yaml:"category,omitempty"`
-	Filters   Filters                `yaml:"filters,omitempty"`
-	Engines   map[string]EngineQuery `yaml:"engines"`
-	Judgments []RelevanceJudgment    `yaml:"judgments"`
+	Text        string                 `yaml:"text,omitempty"`
+	Description string                 `yaml:"description"`
+	Category    Category               `yaml:"category,omitempty"`
+	Filters     Filters                `yaml:"filters,omitempty"`
+	Engines     map[string]EngineQuery `yaml:"engines"`
+	Judgments   []RelevanceJudgment    `yaml:"judgments"`
 }
 
 // Filters declare, engine-neutrally, the structured filters every engine's

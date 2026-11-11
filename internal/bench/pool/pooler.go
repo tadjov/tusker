@@ -18,12 +18,12 @@ type PoolFile struct {
 }
 
 type PoolEntry struct {
-	QueryID   string        `yaml:"query_id"`
-	QueryText string        `yaml:"query_text,omitempty"`
-	QueryDesc string        `yaml:"query_desc"`
-	Category  string        `yaml:"category,omitempty"`
-	Filters   suite.Filters `yaml:"filters,omitempty"`
-	Docs      []PooledDoc   `yaml:"docs"`
+	QueryID   string         `yaml:"query_id"`
+	QueryText string         `yaml:"query_text,omitempty"`
+	QueryDesc string         `yaml:"query_desc"`
+	Category  suite.Category `yaml:"category,omitempty"`
+	Filters   suite.Filters  `yaml:"filters,omitempty"`
+	Docs      []PooledDoc    `yaml:"docs"`
 	// RequestDigests hold, by engine, the digest of the request it was sent.
 	RequestDigests map[string]string `yaml:"request_digests,omitempty"`
 }

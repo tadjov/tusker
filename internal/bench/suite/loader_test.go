@@ -322,3 +322,38 @@ func TestParse_RejectsAMisspeltFilter(t *testing.T) {
 
 	assert.ErrorContains(t, err, "publisher_domian")
 }
+
+func TestParse_QueryCategory(t *testing.T) {
+	for _, category := range []string{"keyword", "phrase", "boolean", "multi-field", "single-field"} {
+		t.Run(category, func(t *testing.T) {
+			loaded, err := Parse([]byte(validHeader + `queries:
+  - id: q1
+    text: climate
+    category: ` + category + `
+    engines:
+      pg: "SELECT 1"
+`))
+			require.NoError(t, err)
+			assert.Equal(t, Category(category), loaded.Suite.Queries[0].Category)
+		})
+	}
+}
+
+// The judges gate on the category, so a misspelt one would silently grade a
+// boolean or phrase query as plain keywords.
+func TestParse_RejectsAnUnknownCategoryNamingTheQuery(t *testing.T) {
+	for _, category := range []string{"Boolean", "booleans", "Phrase", "facet"} {
+		t.Run(category, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-climate
+    text: climate
+    category: ` + category + `
+    engines:
+      pg: "SELECT 1"
+`))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-climate"`)
+			assert.Contains(t, err.Error(), category)
+		})
+	}
+}

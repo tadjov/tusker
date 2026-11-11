@@ -133,12 +133,6 @@ func queryTerms(q GradingQuery) ([]string, error) {
 	return out, nil
 }
 
-// Categories whose queries constrain which documents can be relevant at all.
-const (
-	categoryPhrase  = "phrase"
-	categoryBoolean = "boolean"
-)
-
 // termQuery is a query as the keyword and bm25 judges read it: the terms that
 // score a document, and the filters and category gate a document must pass to
 // score at all.
@@ -173,9 +167,9 @@ func passesFilters(f suite.Filters, d analyzedDoc) bool {
 func readTermQuery(q GradingQuery) (termQuery, error) {
 	var tq termQuery
 	switch q.Category {
-	case categoryPhrase:
+	case suite.CategoryPhrase:
 		tq = termQuery{terms: scoringTerms(q.Text), gate: phraseMatcher(terms(q.Text))}
-	case categoryBoolean:
+	case suite.CategoryBoolean:
 		gate, positives, err := parseBoolean(q.Text)
 		if err != nil {
 			return termQuery{}, &NoQueryTermsError{QueryID: q.ID, Reason: err.Error()}

@@ -19,7 +19,7 @@ type GradingQuery struct {
 	// it and look its vector up by it; Description only describes it.
 	Text        string
 	Description string
-	Category    string
+	Category    suite.Category
 	Filters     suite.Filters
 }
 

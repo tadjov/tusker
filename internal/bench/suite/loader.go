@@ -64,6 +64,11 @@ func Parse(data []byte) (*LoadedSuite, error) {
 		if len(q.Engines) == 0 {
 			return nil, fmt.Errorf("query %q has no engines", q.ID)
 		}
+		if q.Category != "" {
+			if _, err := ParseCategory(string(q.Category)); err != nil {
+				return nil, fmt.Errorf("query %q: %w", q.ID, err)
+			}
+		}
 		for engName, eq := range q.Engines {
 			if eq.Template != "" {
 				if _, ok := registry.Get(eq.Template); !ok {

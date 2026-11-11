@@ -38,8 +38,8 @@ for these kinds instead of stubbing a fake vector and reporting a misleading OK.
 
 ### Query categories
 
-A suite query may carry `category:` (free-form; the fts track uses keyword, phrase, boolean,
-multi-field, single-field). When a job's queries span more than one category, `bench run`
+A suite query may carry `category:`, one of `keyword`, `phrase`, `boolean`, `multi-field` or
+`single-field`; any other value fails the suite load, naming the query. When a job's queries span more than one category, `bench run`
 prints the aggregated table per category alongside the overall one.
 
 Result-list length is the reason. A strict phrase query legitimately matches two documents

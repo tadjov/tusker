@@ -155,7 +155,7 @@ func TestOpen_AcceptsASuiteEditedOnlyOutsideItsQueryTexts(t *testing.T) {
 	}{
 		{name: "a suite name added", from: "id: fixture-semantic\n", to: "id: fixture-semantic\nname: Fixture semantic\n"},
 		{name: "the template's statement changed", from: "LIMIT 10", to: "LIMIT 100"},
-		{name: "a query category added", from: fixtureQ2, to: fixtureQ2 + "    category: economy\n"},
+		{name: "a query category added", from: fixtureQ2, to: fixtureQ2 + "    category: keyword\n"},
 		{name: "a query description changed", from: `"Policy responses to climate change"`, to: `"How governments answer climate change"`},
 	}
 	for _, tt := range tests {

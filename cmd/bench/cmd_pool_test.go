@@ -56,7 +56,7 @@ func TestBuildPoolFile_DedupsQueryAcrossJobs(t *testing.T) {
 
 	require.Len(t, pf.Queries, 1, "q1 should appear exactly once after merging jobs")
 	assert.Equal(t, "q1", pf.Queries[0].QueryID)
-	assert.Equal(t, "keyword", pf.Queries[0].Category)
+	assert.Equal(t, suite.CategoryKeyword, pf.Queries[0].Category)
 
 	// Union across both jobs = {id1, id2, id3}, deduplicated.
 	got := make(map[uuid.UUID]bool)
