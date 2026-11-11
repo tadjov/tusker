@@ -306,7 +306,8 @@ each filter bound in UTC, the instant the judges compare.
 `keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
 Unicode letters and digits, single letters included (`US`, and the `D` of `vitamin D`), each
 stemmed with Snowball English (Porter2), so `elections` matches `election`. Stopwords are
-Postgres's `english.stop`, Snowball's 127-word English list, which holds the 33 words of
+Postgres 18's `english.stop`, kept verbatim in `internal/bench/judgment/english.stop`:
+Snowball's 127-word English list, which holds the 33 words of
 Lucene's `_english_` that Elasticsearch and ParadeDB stop. A stopword is never a term of the
 query or of a document, so it neither scores nor counts toward a document's bm25 length, and
 it blanks its position in the gate terms of both. The word is skipped, not its stem, so
