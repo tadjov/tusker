@@ -149,6 +149,27 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 			positive: []string{"A war of words erupts"},
 		},
 		{
+			name:     "every word Postgres stops holds a position, as 'climat' <-> 'chang' <3> 'stop'",
+			query:    GradingQuery{ID: "q", Text: "climate change will not stop", Category: "phrase"},
+			docs:     titled("Climate change can not stop", "Climate change stop", "Stop climate change"),
+			zero:     []string{"Climate change stop", "Stop climate change"},
+			positive: []string{"Climate change can not stop"},
+		},
+		{
+			name:     "a phrase opening with stopwords keeps only its last word, as phraseto_tsquery builds 'storm'",
+			query:    GradingQuery{ID: "q", Text: "after the storm", Category: "phrase"},
+			docs:     titled("Before the storm hits", "Calm weather"),
+			zero:     []string{"Calm weather"},
+			positive: []string{"Before the storm hits"},
+		},
+		{
+			name:     "a quoted operand loses its stopwords, as to_tsquery builds 'brexit' & 'deal'",
+			query:    GradingQuery{ID: "q", Text: `Brexit AND "no deal"`, Category: "boolean"},
+			docs:     titled("Brexit deal agreed", "Brexit talks stall"),
+			zero:     []string{"Brexit talks stall"},
+			positive: []string{"Brexit deal agreed"},
+		},
+		{
 			name:     "a stopword operand drops out of AND, as to_tsquery drops it",
 			query:    GradingQuery{ID: "q", Text: "climate AND the", Category: "boolean"},
 			docs:     titled("Climate report", "Football results"),
@@ -246,6 +267,23 @@ func TestTermJudges_RefuseABooleanTextThatDoesNotParse(t *testing.T) {
 			if !errors.As(err, &unparsed) || unparsed.QueryID != "q1" {
 				t.Errorf("%s on %q: err = %v, want a BooleanTextError for q1", judge, text, err)
 			}
+		}
+	}
+}
+
+// phraseto_tsquery('english', 'will not') is empty, so the phrase has nothing
+// to grade.
+func TestTermJudges_RefuseAPhraseOfStopwordsOnly(t *testing.T) {
+	q := GradingQuery{ID: "q1", Text: "will not", Category: "phrase"}
+	doc := GradingDoc{ID: uuid.New(), Title: "It will not"}
+
+	_, keywordErr := NewKeywordStrategy().Grade(context.Background(), q, doc)
+	_, bm25Err := NewBM25Strategy().GradePool(context.Background(), q, []GradingDoc{doc})
+
+	for judge, err := range map[string]error{"keyword": keywordErr, "bm25": bm25Err} {
+		var noTerms *NoQueryTermsError
+		if !errors.As(err, &noTerms) || noTerms.QueryID != "q1" {
+			t.Errorf("%s: err = %v, want a NoQueryTermsError for q1", judge, err)
 		}
 	}
 }

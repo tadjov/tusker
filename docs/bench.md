@@ -304,8 +304,11 @@ description and the query's filters, with each article's publisher domain beside
 
 `keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
 Unicode letters and digits, two runes or longer (`US` counts), each stemmed with Snowball
-English (Porter2), so `elections` matches `election`. A short stoplist
-(`the`, `of`, `and`, …) is dropped from the query's terms, never from the document.
+English (Porter2), so `elections` matches `election`. Stopwords are Postgres's `english.stop`,
+Snowball's 127-word English list, which holds the 33 words of Lucene's `_english_` that
+Elasticsearch and ParadeDB stop. A stopword never scores: it leaves the query's terms, and
+it blanks its position in the gate terms of query and document alike. A phrase made only of
+stopwords (`will not`) has nothing to grade, as its `phraseto_tsquery` is empty.
 
 Both apply the query's category as a gate before scoring. A `phrase` query grades 0 unless
 one field holds its stemmed words at the phrase's positions. Gate terms are analysed as
