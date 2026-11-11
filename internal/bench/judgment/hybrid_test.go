@@ -101,3 +101,24 @@ func TestHybridGradePool_QueryWithoutTermsFails(t *testing.T) {
 		t.Fatalf("GradePool error = %v, want a NoQueryTermsError for q1", err)
 	}
 }
+
+func TestGradeFromHybridScore(t *testing.T) {
+	cases := []struct {
+		norm float64
+		want int
+	}{
+		{1.0, GradeHighly},
+		{0.66, GradeHighly},
+		{0.5, GradeRelevant},
+		{0.40, GradeRelevant},
+		{0.2, GradeMarginally},
+		{0.15, GradeMarginally},
+		{0.1, GradeNotRelev},
+		{0.0, GradeNotRelev},
+	}
+	for _, c := range cases {
+		if got := gradeFromHybridScore(c.norm); got != c.want {
+			t.Errorf("gradeFromHybridScore(%v) = %d, want %d", c.norm, got, c.want)
+		}
+	}
+}

@@ -142,33 +142,3 @@ func bm25Score(terms []string, docs []analyzedDoc) bm25Scores {
 	}
 	return scores
 }
-
-// poolMaxNorms divides each score by the pool's best, the bm25 signal hybrid
-// fuses.
-func poolMaxNorms(scores []float64) []float64 {
-	maxScore := 0.0
-	for _, score := range scores {
-		maxScore = max(maxScore, score)
-	}
-	norms := make([]float64, len(scores))
-	if maxScore > 0 {
-		for i, score := range scores {
-			norms[i] = score / maxScore
-		}
-	}
-	return norms
-}
-
-// gradeFromNorm maps hybrid's [0,1] fusion score to a grade.
-func gradeFromNorm(norm float64) int {
-	switch {
-	case norm >= 0.66:
-		return GradeHighly
-	case norm >= 0.40:
-		return GradeRelevant
-	case norm >= 0.15:
-		return GradeMarginally
-	default:
-		return GradeNotRelev
-	}
-}

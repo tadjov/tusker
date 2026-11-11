@@ -57,11 +57,11 @@ func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []Gr
 	if len(docs) == 0 {
 		return nil, nil
 	}
-	bm25Terms, err := queryTerms(q)
+	bm25Terms, err := hybridQueryTerms(q)
 	if err != nil {
 		return nil, err
 	}
-	bm25Norms := poolMaxNorms(bm25Score(bm25Terms, analyzeDocs(docs)).docs)
+	bm25Norms := hybridPoolMaxNorms(bm25Score(bm25Terms, analyzeDocs(docs)).docs)
 	qVec, vecs, err := s.vector.vectors(ctx, q, docs)
 	if err != nil {
 		return nil, fmt.Errorf("hybrid vector component: %w", err)
@@ -80,7 +80,47 @@ func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []Gr
 			cos = 0 // cosine can be negative; clamp so it doesn't cancel BM25
 		}
 		combined := hybridBM25Weight*bm25Norms[i] + hybridVectorWeight*cos
-		out = append(out, GradedDoc{DocID: d.ID, Grade: gradeFromNorm(combined)})
+		out = append(out, GradedDoc{DocID: d.ID, Grade: gradeFromHybridScore(combined)})
 	}
 	return out, nil
+}
+
+// hybridQueryTerms reads the whole text as terms, whatever the query's
+// category: hybrid applies no phrase or boolean gate.
+func hybridQueryTerms(q GradingQuery) ([]string, error) {
+	out := scoringTerms(q.Text)
+	if len(out) == 0 {
+		return nil, &NoQueryTermsError{QueryID: q.ID}
+	}
+	return out, nil
+}
+
+// hybridPoolMaxNorms divides each bm25 score by the pool's best, the text
+// signal hybrid fuses.
+func hybridPoolMaxNorms(scores []float64) []float64 {
+	maxScore := 0.0
+	for _, score := range scores {
+		maxScore = max(maxScore, score)
+	}
+	norms := make([]float64, len(scores))
+	if maxScore > 0 {
+		for i, score := range scores {
+			norms[i] = score / maxScore
+		}
+	}
+	return norms
+}
+
+// gradeFromHybridScore maps hybrid's [0,1] fusion score to a grade.
+func gradeFromHybridScore(norm float64) int {
+	switch {
+	case norm >= 0.66:
+		return GradeHighly
+	case norm >= 0.40:
+		return GradeRelevant
+	case norm >= 0.15:
+		return GradeMarginally
+	default:
+		return GradeNotRelev
+	}
 }

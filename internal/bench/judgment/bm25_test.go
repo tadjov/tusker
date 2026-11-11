@@ -50,27 +50,6 @@ func TestBM25GradePool_QueryWithoutTermsFails(t *testing.T) {
 	}
 }
 
-func TestGradeFromNorm(t *testing.T) {
-	cases := []struct {
-		norm float64
-		want int
-	}{
-		{1.0, GradeHighly},
-		{0.66, GradeHighly},
-		{0.5, GradeRelevant},
-		{0.40, GradeRelevant},
-		{0.2, GradeMarginally},
-		{0.15, GradeMarginally},
-		{0.1, GradeNotRelev},
-		{0.0, GradeNotRelev},
-	}
-	for _, c := range cases {
-		if got := gradeFromNorm(c.norm); got != c.want {
-			t.Errorf("gradeFromNorm(%v) = %d, want %d", c.norm, got, c.want)
-		}
-	}
-}
-
 // bm25Pool builds a one-query pool whose articles carry the given titles, in
 // that order.
 func bm25Pool(titles ...string) (*pool.PoolFile, *stubStorageReader) {

@@ -173,15 +173,6 @@ func scoringTerms(texts ...string) []string {
 	return slices.Compact(out)
 }
 
-// queryTerms reads the whole text as terms, whatever the query's category.
-func queryTerms(q GradingQuery) ([]string, error) {
-	out := scoringTerms(q.Text)
-	if len(out) == 0 {
-		return nil, &NoQueryTermsError{QueryID: q.ID}
-	}
-	return out, nil
-}
-
 // termQuery is a query as the keyword and bm25 judges read it: the terms that
 // score a document, and the filters and category gate a document must pass to
 // score at all.

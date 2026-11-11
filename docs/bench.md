@@ -390,10 +390,16 @@ are pinned as
 | ≥ 0.15 | 1     | one of two equally rare terms once: 0.20   |
 | < 0.15 | 0     | one of three equally rare terms once: 0.13 |
 
-Every scoring term counts toward the bound, so a boolean query's `OR` alternatives share it:
-at average length, a document holding one of two equally rare alternatives once normalises to
-0.20, against 0.40 for one holding both. `hybrid` still fuses the pool-maximum-normalised bm25
-score with its own thresholds.
+These judges cross-check the LLM judge, and three of their limits are disclosed rather than
+fixed:
+
+- Every scoring term counts toward the bm25 bound, `OR` alternatives included, so `OR`
+  queries grade lower: at average length a document holding one of two equally rare
+  alternatives once normalises to 0.20, against 0.40 for one holding both.
+- `hybrid`'s text half is still the bm25 score divided by the pool's best, with hybrid's own
+  thresholds, so adding an engine to the pool can still regrade a hybrid document.
+- `hybrid` applies no phrase or boolean gate, and scores every word of a boolean text,
+  negated ones included.
 
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes
