@@ -399,3 +399,36 @@ func TestParse_ReadsAParenthesisedBooleanText(t *testing.T) {
 
 	assert.NoError(t, err)
 }
+
+// An article's publisher domain is its url's lowercase eTLD+1, so a filter
+// spelt any other way matches no article and zeroes every grade.
+func TestParse_PublisherDomainFilter(t *testing.T) {
+	tests := []struct {
+		domain  string
+		wantErr bool
+	}{
+		{domain: "reuters.com"},
+		{domain: "bbc.co.uk"},
+		{domain: "Reuters.com", wantErr: true},
+		{domain: "www.reuters.com", wantErr: true},
+		{domain: "uk.reuters.com", wantErr: true},
+		{domain: "https://reuters.com", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.domain, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-filtered
+    text: climate
+    filters: { publisher_domain: "` + tt.domain + `" }
+    engines:
+      pg: "SELECT 1"
+`))
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-filtered"`)
+		})
+	}
+}

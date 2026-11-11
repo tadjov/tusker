@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/ingest/reader"
 	"gopkg.in/yaml.v3"
 )
 
@@ -64,6 +65,19 @@ type Filters struct {
 	PublishedAfter time.Time `yaml:"published_after,omitempty"`
 	// PublishedBefore admits articles published strictly earlier.
 	PublishedBefore time.Time `yaml:"published_before,omitempty"`
+}
+
+// check refuses a publisher domain no article carries: an article's is its
+// url's lowercase eTLD+1.
+func (f Filters) check() error {
+	if f.PublisherDomain == "" {
+		return nil
+	}
+	if derived := reader.PublisherDomain("https://" + f.PublisherDomain); derived != f.PublisherDomain {
+		return fmt.Errorf("filters.publisher_domain %q is not a publisher domain, which is a url's lowercase eTLD+1 (%q for this one)",
+			f.PublisherDomain, derived)
+	}
+	return nil
 }
 
 type EngineQuery struct {
