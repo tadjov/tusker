@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -274,6 +275,19 @@ func (fx *judgeFixture) judge(t *testing.T, args ...string) error {
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs(append([]string{fx.track}, args...))
 	return cmd.ExecuteContext(context.Background())
+}
+
+func (fx *judgeFixture) judgeOutput(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) {
+		return fx.articles, nil
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs(append([]string{fx.track}, args...))
+	err := cmd.ExecuteContext(context.Background())
+	return out.String(), err
 }
 
 func (fx *judgeFixture) writePriorBM25(t *testing.T, runID string, queries ...judgment.Entry) {
@@ -618,10 +632,18 @@ func TestJudge_UnparsableBooleanTextFailsAfterWritingTheFile(t *testing.T) {
 	fx.pool.Queries[0].Category = "boolean"
 	fx.writePool(t)
 
-	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged")
+	out, err := fx.judgeOutput(t, "--strategy", "bm25", "--allow-unjudged")
 
 	var unparsed *judgment.BooleanTextError
 	require.ErrorAs(t, err, &unparsed)
 	assert.Equal(t, "q1", unparsed.QueryID)
-	assert.Equal(t, judgment.GradeUnjudged, gradesByQuery(fx.annotations(t, "bm25"))["q1"][fx.pool.Queries[0].Docs[0].DocID])
+	jf := fx.annotations(t, "bm25")
+	assert.Equal(t, judgment.GradeUnjudged, gradesByQuery(jf)["q1"][fx.pool.Queries[0].Docs[0].DocID])
+	require.NotNil(t, jf.Meta.GradedCount)
+	require.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Equal(t, 0, *jf.Meta.GradedCount)
+	assert.Equal(t, 1, *jf.Meta.UnjudgedCount)
+	// Every flush already writes the same file, so only the closing line shows
+	// the command finalised it before failing.
+	assert.Regexp(t, `Judgments written: \S+/trec/annotations\.bm25\.yaml`, out)
 }
