@@ -305,15 +305,15 @@ each filter bound in UTC, the instant the judges compare.
 
 `keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
 Unicode letters and digits of any length, so `US` and the `D` of `vitamin D` are terms, each
-stemmed with Snowball English (Porter2), so `elections` matches `election`. Stopwords are
-Postgres 18's `english.stop`, kept verbatim in `internal/bench/judgment/english.stop`:
-Snowball's 127-word English list, which holds the 33 words of
-Lucene's `_english_` that Elasticsearch and ParadeDB stop. A stopword is never a term of the
-query or of a document, so it neither scores nor counts toward a document's bm25 length, and
-it blanks its position in the gate terms of both. The word is skipped, not its stem, so
-`Downing` never matches the stopword `down`.
-A phrase made only of stopwords (`will not`) has nothing to grade, as its `phraseto_tsquery`
-is empty.
+stemmed with Snowball English (Porter2), so `elections` matches `election`. The judges stem
+with kljensen/snowball, which gives `added` → `ad` as Elasticsearch and ParadeDB do, where
+Postgres 18 gives `add`. Stopwords are Postgres 18's `english.stop`, kept verbatim in
+`internal/bench/judgment/english.stop`: Snowball's 127-word English list, which holds the 33
+words of Lucene's `_english_` that Elasticsearch and ParadeDB stop. A stopword is never a
+term of the query or of a document, so it neither scores nor counts toward a document's bm25
+length, and it blanks its position in the gate terms of both. The word is skipped, not its
+stem, so `Downing` never matches the stopword `down`. A phrase made only of stopwords
+(`will not`) has nothing to grade, as its `phraseto_tsquery` is empty.
 
 Both apply the query's category as a gate before scoring. A `phrase` query grades 0 unless
 one field holds its stemmed words at the phrase's positions. Gate terms are analysed as
@@ -325,12 +325,15 @@ match each field on its own to agree with the judge: one matched against a conca
 tsvector (`title || ' ' || description`, or `search_vector`) also matches across a field
 boundary, and those hits grade 0.
 
-The judges split a word at every character that is not a letter or digit, so two forms are
-a known difference: a hyphenated word (`e-mail`, which Postgres indexes whole beside its
-parts) and a dotted form (`U.S.`, `A.I.`, `e.g.`, one token in
-Postgres and Elasticsearch). The suite load refuses a dotted form, a word joined to the next
-by a dot (`U.S.`, `No.10`, `news.com`), in a `phrase` or `boolean` query's text, naming the
-query: write an initialism without dots (`US`), anything else as separate words, or drop it.
+The judges split a word at every character that is not a letter or digit, so forms Postgres
+18 keeps as one token are a known difference: floats (`52.6`), hosts (`others.Sivini`,
+`pic.twitter.com`), file-like forms (`9/11`, `AR/VR`, `3/18/2018`), urls and emails, dotted
+forms (`U.S.`, `No.10`), and a signed number after a hyphen (`COVID-19`, `F-35` and `G-20`
+give Postgres `covid` and `-19`, `f` and `-35`, `g` and `-20`). A hyphenated compound of
+words (`e-mail`) Postgres indexes whole beside its parts, which the judges hold too. The
+suite load refuses a dotted form, a word joined to the next by a dot (`U.S.`, `No.10`,
+`news.com`), in a `phrase` or `boolean` query's text, naming the query: write an initialism
+without dots (`US`), anything else as separate words, or drop it.
 
 A `boolean` query's text is parsed with `internal/token`'s grammar: `AND`, `OR`, `NOT` in any
 case, parentheses, quoted phrases, `AND` between adjacent operands, `NOT` binding tighter
@@ -339,8 +342,8 @@ than `AND` and `AND` tighter than `OR`. A document for which the expression is f
 expression, as `to_tsquery` drops a stopword. A single letter that is not a stopword stays a
 term, as it does in Postgres and Elasticsearch: `vitamin D AND deficiency` needs the `d`. A
 quoted operand is a phrase, read one field at a time like a `phrase` query; the native
-boolean API matches it with `search_vector @@ to_tsquery`, across title and description,
-and the hits that span a field boundary grade 0. Scoring ranks only the documents that pass,
+boolean API matches it with `search_vector @@ to_tsquery`, across title, description and
+content, and the hits that span a field boundary grade 0. Scoring ranks only the documents that pass,
 and `bm25` still counts every pooled document in its term statistics. A boolean text that
 does not parse fails the suite load, naming the query, so `bench validate` and `bench pool`
 refuse it; in a pool written before, the judges leave that query unjudged, as they do a
