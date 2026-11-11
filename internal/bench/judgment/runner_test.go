@@ -269,7 +269,7 @@ func TestRunner_NilStrategyErrors(t *testing.T) {
 // A query with no usable terms fails the run, but only after every other query
 // is graded, so the file still lands and names what is missing.
 func TestRunner_QueryWithoutTermsFailsTheRunAfterGradingTheRest(t *testing.T) {
-	for _, strategy := range []Strategy{NewLexicalStrategy(), NewBM25Strategy()} {
+	for _, strategy := range []Strategy{NewKeywordStrategy(), NewBM25Strategy()} {
 		t.Run(strategy.Name(), func(t *testing.T) {
 			pf, articles := buildPool(t, 3)
 			pf.Queries[0].QueryDesc = "the news"

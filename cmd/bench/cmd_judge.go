@@ -56,7 +56,7 @@ func newJudgeCmdWithReader(openReader articleReaderOpener) *cobra.Command {
 		Short: "Grade a pool file with the chosen strategy",
 		Long: `Grades every (query, doc) pair in the track's pool using one of:
 
-  lexical     — deterministic token-overlap baseline (no network, no LLM)
+  keyword     — deterministic token-overlap baseline (no network, no LLM)
   bm25        — pool-local Okapi BM25 (no network; rewards rare terms)
   vector      — cosine similarity; doc vectors from PG (--pg), query vectors
                 from trec/query-vectors, else Ollama (EMBEDDING_BASE_URL)
@@ -84,10 +84,10 @@ Resumable: re-run with the same --strategy and --resume to skip docs already
 graded. bm25 and hybrid grade relative to the whole pool, so they skip only
 queries that are fully graded and regrade the rest whole. Atomic writes mean
 Ctrl-C is safe.`,
-		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy lexical
+		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy keyword
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
-  bench judge --pool /tmp/p.yaml --strategy lexical --output /tmp/a.yaml`,
+  bench judge --pool /tmp/p.yaml --strategy keyword --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return judgeCommand{flags: f, openReader: openReader}.execute(cmd, args)
@@ -96,7 +96,7 @@ Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.poolPath, "pool", "", "Override pool YAML path")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override annotations output path")
-	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyLexical), "Judge strategy")
+	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyKeyword), "Judge strategy")
 	cmd.Flags().StringVar(&f.pg, "pg", "", "Postgres connection (or set PG_CONNECTION_STRING)")
 	cmd.Flags().IntVar(&f.concurrency, "concurrency", 4, "Parallel Grade calls (per-doc strategies)")
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
@@ -284,7 +284,7 @@ func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error
 	switch kind {
 	case judgment.StrategyLLM:
 		return kind, judgment.Provider(f.provider), nil
-	case judgment.StrategyLexical, judgment.StrategyBM25, judgment.StrategyVector,
+	case judgment.StrategyKeyword, judgment.StrategyBM25, judgment.StrategyVector,
 		judgment.StrategyHybrid, judgment.StrategyManual:
 		return kind, "", nil
 	}

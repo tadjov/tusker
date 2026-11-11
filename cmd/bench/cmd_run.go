@@ -81,7 +81,7 @@ spec.defaults.judgments.`,
 	}
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.specPath, "spec", "", "Override spec.yaml path")
-	cmd.Flags().StringVar(&f.judgments, "judgments", "", "Strategy name (e.g. lexical) or annotations YAML path")
+	cmd.Flags().StringVar(&f.judgments, "judgments", "", "Strategy name (e.g. keyword) or annotations YAML path")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override report path (default: <track>/reports/<run_id>.json)")
 	cmd.Flags().StringVar(&f.kValues, "k", "3,5,10", "K cut-offs for NDCG/P/R/F1")
 	cmd.Flags().StringVar(&f.jobs, "jobs", "", "Comma-separated job names to run (default: all jobs in spec)")
@@ -610,7 +610,7 @@ func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *m
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if explicit {
 			return nil, nil, fmt.Errorf("--judgments file not found: %s\n"+
-				"  • check the strategy name (lexical, claude-cli, claude-api, manual)\n"+
+				"  • check the strategy name (keyword, claude-cli, claude-api, manual)\n"+
 				"  • or pass an explicit path to an existing YAML\n"+
 				"  • or pass --latency-only to measure latency without scoring", path)
 		}

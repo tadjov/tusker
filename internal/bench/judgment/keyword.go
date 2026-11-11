@@ -9,22 +9,22 @@ import (
 	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
-// LexicalStrategy is a deterministic baseline judge. It tokenizes the query
+// KeywordStrategy is a deterministic baseline judge. It tokenizes the query
 // description, then counts how many distinct query tokens appear in the
 // document's title, description, and content.
-type LexicalStrategy struct{}
+type KeywordStrategy struct{}
 
-const lexicalRubricVersion = "v1"
+const keywordRubricVersion = "v1"
 
-func NewLexicalStrategy() *LexicalStrategy { return &LexicalStrategy{} }
+func NewKeywordStrategy() *KeywordStrategy { return &KeywordStrategy{} }
 
-func (LexicalStrategy) Name() string { return string(StrategyLexical) }
+func (KeywordStrategy) Name() string { return string(StrategyKeyword) }
 
-func (LexicalStrategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyLexical), RubricVersion: lexicalRubricVersion}
+func (KeywordStrategy) Describe() meta.Judge {
+	return meta.Judge{Strategy: string(StrategyKeyword), RubricVersion: keywordRubricVersion}
 }
 
-func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
+func (KeywordStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
 	terms, err := queryTerms(q)
 	if err != nil {
 		return GradeUnjudged, err

@@ -20,7 +20,7 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments $(addprefix migrate-schema-,$(PG_ENGINES)) $(addprefix migrate-down-,$(PG_ENGINES)) migrate-schema-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess $(addprefix run-datapipe-load-,$(LOAD_ENGINES)) run-datapipe-load-all
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-keyword bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments $(addprefix migrate-schema-,$(PG_ENGINES)) $(addprefix migrate-down-,$(PG_ENGINES)) migrate-schema-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess $(addprefix run-datapipe-load-,$(LOAD_ENGINES)) run-datapipe-load-all
 
 $(addprefix migrate-schema-,$(PG_ENGINES)): migrate-schema-%:
 	@echo "Migrating the schema ($*)..."
@@ -190,8 +190,8 @@ bench-run: build-bench
 bench-pool: build-bench
 	@./$(BIN_DIR)/bench pool $(TRACK)
 
-bench-judge-lexical: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy lexical
+bench-judge-keyword: build-bench
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy keyword
 
 bench-judge-cli: build-bench
 	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-cli --resume
@@ -206,10 +206,10 @@ bench-show-pool: build-bench
 	@./$(BIN_DIR)/bench show pool $(TRACK)
 
 bench-show-judgments: build-bench
-	@./$(BIN_DIR)/bench show judgments $(TRACK) --strategy lexical
+	@./$(BIN_DIR)/bench show judgments $(TRACK) --strategy keyword
 
 bench-qrels: build-bench
-	@./$(BIN_DIR)/bench export $(TRACK) --format qrels --strategy lexical
+	@./$(BIN_DIR)/bench export $(TRACK) --format qrels --strategy keyword
 
 # Development workflow
 dev: fmt vet lint test build-all

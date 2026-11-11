@@ -70,7 +70,7 @@ func TestCheckResumeCompat_IdenticalJudgeMatches(t *testing.T) {
 }
 
 func TestCheckResumeCompat_StrategyMismatch(t *testing.T) {
-	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyLexical)})
+	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyKeyword)})
 	strat := fakeStrategy{judge: llmJudge("claude-cli", judgment.DefaultJudgeModel)}
 
 	err := checkResumeCompat(prior, strat)
@@ -541,4 +541,22 @@ func packageQueryVector(t *testing.T, track, text string) []float32 {
 	vector, err := store.QueryVector(context.Background(), text)
 	require.NoError(t, err)
 	return vector
+}
+
+func TestJudge_KeywordStrategyWritesItsOwnSet(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+	require.NoError(t, fx.judge(t, "--strategy", "keyword"))
+
+	assert.Equal(t, "keyword", fx.annotations(t, "keyword").Judge().Strategy)
+}
+
+func TestJudge_LexicalIsNoLongerAStrategy(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+	err := fx.judge(t, "--strategy", "lexical")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "keyword")
+	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.lexical.yaml"))
 }

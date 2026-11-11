@@ -59,7 +59,7 @@ type DroppedExecution struct {
 
 // Judge attests who graded an annotations file. Structured rather than flat so
 // a judgment set names its grader unambiguously: Strategy is the generic
-// taxonomy entry (lexical, bm25, vector, hybrid, llm-cli, llm-api, manual) and
+// taxonomy entry (keyword, bm25, vector, hybrid, llm-cli, llm-api, manual) and
 // Provider/Model identify the vendor and model behind the LLM strategies. This
 // is what makes LLM-graded qrels reproducible and lets the resume guard reject
 // a grader swap mid-run.
@@ -78,7 +78,7 @@ type Judge struct {
 func (j Judge) Equal(other Judge) bool { return j == other }
 
 // String renders the judge for CLI output, e.g. "llm-cli/claude
-// claude-haiku-4-5-20251001" or plain "lexical".
+// claude-haiku-4-5-20251001" or plain "keyword".
 func (j Judge) String() string {
 	s := j.Strategy
 	if j.Provider != "" {

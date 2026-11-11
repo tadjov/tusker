@@ -11,7 +11,7 @@ import (
 )
 
 // VectorStrategy grades candidates by cosine similarity between the query
-// embedding and each document's stored embedding. Unlike lexical/bm25 it
+// embedding and each document's stored embedding. Unlike keyword/bm25 it
 // captures semantic relevance — paraphrases and related concepts with no shared
 // keywords — which is what the semantic and hybrid tracks need.
 //

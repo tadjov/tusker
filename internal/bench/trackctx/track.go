@@ -52,7 +52,7 @@ type Inputs struct {
 	SpecPath   string // --spec override
 	PoolPath   string // --pool override
 	OutputPath string // --output override
-	Judgments  string // --judgments value: "lexical" (strategy name) | path/to.yaml | empty
+	Judgments  string // --judgments value: "keyword" (strategy name) | path/to.yaml | empty
 }
 
 // Track holds absolute paths derived from a track folder + overrides.
@@ -122,7 +122,7 @@ func newTrack(root, name string) *Track {
 
 // JudgmentsPath resolves --judgments. Three shapes:
 //   - "" or absent → track's default (caller should consult spec.defaults).
-//   - bare name like "lexical" → trec/annotations.lexical.yaml.
+//   - bare name like "keyword" → trec/annotations.keyword.yaml.
 //   - path containing / or .yaml → used verbatim.
 func (t *Track) JudgmentsPath(value string) string {
 	if value == "" {

@@ -93,7 +93,7 @@ func newShowJudgmentsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s := strategy
 			if s == "" {
-				s = string(judgment.StrategyLexical)
+				s = string(judgment.StrategyKeyword)
 			}
 			path, err := resolveArtifactPath(args, "judgments", s)
 			if err != nil {
@@ -107,7 +107,7 @@ func newShowJudgmentsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&strategy, "strategy", "", "Strategy name when summarising by track (default: lexical)")
+	cmd.Flags().StringVar(&strategy, "strategy", "", "Strategy name when summarising by track (default: keyword)")
 	return cmd
 }
 

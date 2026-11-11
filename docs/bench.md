@@ -286,7 +286,7 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 
 | Strategy     | Class     | Status   | Description                                              |
 |--------------|-----------|----------|----------------------------------------------------------|
-| `lexical`    | Heuristic | ✅        | Token-overlap baseline — fast, deterministic, no network |
+| `keyword`    | Heuristic | ✅        | Token-overlap baseline — fast, deterministic, no network |
 | `bm25`       | Heuristic | ✅        | Pool-local Okapi BM25, normalised → grade (no network)   |
 | `vector`     | Heuristic | ✅        | Cosine similarity; doc vectors from the store → grade    |
 | `hybrid`     | Heuristic | ✅        | Weighted BM25 + vector fusion → grade                    |

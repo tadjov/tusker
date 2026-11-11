@@ -100,7 +100,7 @@ func JudgmentSetName(kind StrategyKind, provider Provider) string {
 // --provider claude-cli.
 func ParseSelector(name string) (StrategyKind, Provider, error) {
 	switch kind := StrategyKind(name); kind {
-	case StrategyLexical, StrategyBM25, StrategyVector, StrategyHybrid, StrategyManual:
+	case StrategyKeyword, StrategyBM25, StrategyVector, StrategyHybrid, StrategyManual:
 		return kind, "", nil
 	case StrategyLLM:
 		// "llm" alone does not name a judgment set — every LLM set is filed
@@ -122,7 +122,7 @@ func ParseSelector(name string) (StrategyKind, Provider, error) {
 // writable but never a set name, and providers are set names but not strategies.
 func KnownJudgeStrategies() []string {
 	return []string{
-		string(StrategyLexical),
+		string(StrategyKeyword),
 		string(StrategyBM25),
 		string(StrategyVector),
 		string(StrategyHybrid),
@@ -136,7 +136,7 @@ func KnownJudgeStrategies() []string {
 // immediately valid without touching this list.
 func KnownStrategies() []string {
 	out := []string{
-		string(StrategyLexical),
+		string(StrategyKeyword),
 		string(StrategyBM25),
 		string(StrategyVector),
 		string(StrategyHybrid),

@@ -8,9 +8,9 @@ import (
 )
 
 func TestNewStrategy_KnownNames(t *testing.T) {
-	s, err := NewStrategy(StrategyLexical, StrategyOptions{})
+	s, err := NewStrategy(StrategyKeyword, StrategyOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, "lexical", s.Name())
+	assert.Equal(t, "keyword", s.Name())
 
 	s, err = NewStrategy(StrategyManual, StrategyOptions{})
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestNewStrategy_UnknownName(t *testing.T) {
 // Heuristic judges have no prompt, so the rubric version is what tells two
 // grade sets under the same strategy apart.
 func TestHeuristicStrategies_NameTheirRubric(t *testing.T) {
-	for _, kind := range []StrategyKind{StrategyLexical, StrategyBM25, StrategyVector, StrategyHybrid} {
+	for _, kind := range []StrategyKind{StrategyKeyword, StrategyBM25, StrategyVector, StrategyHybrid} {
 		s, err := NewStrategy(kind, StrategyOptions{VectorStore: fakeVectorStore{}})
 		require.NoError(t, err)
 		assert.NotEmpty(t, s.Describe().RubricVersion, "strategy %q", kind)

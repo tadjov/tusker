@@ -20,7 +20,7 @@ const (
 // from pool documents. Each doc's score is normalised against the top-scoring
 // candidate and mapped to a grade 0-3.
 //
-// It is a heuristic, no-network judge — stronger than lexical token-overlap
+// It is a heuristic, no-network judge — stronger than the keyword judge's token overlap
 // because it rewards rarer terms and saturates term frequency, but still purely
 // keyword-based with no semantic understanding. Use it as a reproducible
 // baseline alongside the LLM judges.

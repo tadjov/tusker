@@ -83,7 +83,7 @@ func executeInit(cmd *cobra.Command, f initFlags, name string) error {
 	ctx := initContext{
 		Name:           filepath.Base(root),
 		SuiteRel:       "suite.yaml",
-		AnnotationsRel: filepath.Join("trec", "annotations.lexical.yaml"),
+		AnnotationsRel: filepath.Join("trec", "annotations.keyword.yaml"),
 	}
 
 	files := []struct {

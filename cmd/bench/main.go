@@ -30,7 +30,7 @@ Typical pipeline (pass the track path as a positional arg):
   1. bench init <track>              scaffold a track folder
   2. bench validate <track>          dry-run every query through each engine
   3. bench pool <track>              gather candidate docs → trec/pool.yaml
-  4. bench judge <track>             grade with lexical (default) or LLM strategy
+  4. bench judge <track>             grade with keyword (default) or LLM strategy
   5. bench run <track>               execute + report (reads spec.defaults.judgments)
   6. bench export <track> --format html    shareable HTML report
      bench export <track> --format qrels  TREC qrels for trec_eval / R / Python

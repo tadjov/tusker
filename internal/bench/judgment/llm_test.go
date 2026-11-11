@@ -18,7 +18,7 @@ func TestParseSelector(t *testing.T) {
 		provider Provider
 		wantErr  string
 	}{
-		{sel: "lexical", kind: StrategyLexical},
+		{sel: "keyword", kind: StrategyKeyword},
 		{sel: "bm25", kind: StrategyBM25},
 		{sel: "vector", kind: StrategyVector},
 		{sel: "hybrid", kind: StrategyHybrid},
@@ -63,7 +63,7 @@ func TestKnownStrategiesListsSetNames(t *testing.T) {
 	known := KnownStrategies()
 	joined := strings.Join(known, ",")
 
-	for _, want := range []string{"lexical", "bm25", "vector", "hybrid", "claude-cli", "claude-api", "manual"} {
+	for _, want := range []string{"keyword", "bm25", "vector", "hybrid", "claude-cli", "claude-api", "manual"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("KnownStrategies() = %v, missing %q", known, want)
 		}
@@ -81,7 +81,7 @@ func TestJudgmentSetName(t *testing.T) {
 		provider Provider
 		want     string
 	}{
-		{kind: StrategyLexical, want: "lexical"},
+		{kind: StrategyKeyword, want: "keyword"},
 		{kind: StrategyManual, want: "manual"},
 		{kind: StrategyLLM, provider: ProviderClaudeCLI, want: "claude-cli"},
 		{kind: StrategyLLM, provider: ProviderClaudeAPI, want: "claude-api"},
@@ -104,7 +104,7 @@ func TestJudgmentSetNameRoundTrips(t *testing.T) {
 		kind     StrategyKind
 		provider Provider
 	}{
-		{kind: StrategyLexical},
+		{kind: StrategyKeyword},
 		{kind: StrategyBM25},
 		{kind: StrategyVector},
 		{kind: StrategyHybrid},
