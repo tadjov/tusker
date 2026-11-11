@@ -119,6 +119,55 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 			zero:     []string{"War over trade", "China trade war"},
 			positive: []string{"Trade war with Europe"},
 		},
+		{
+			name:     "a stopword opening a phrase leaves it, as phraseto_tsquery builds 'white' <-> 'hous'",
+			query:    GradingQuery{ID: "q", Text: "the White House", Category: "phrase"},
+			docs:     titled("White House officials said", "House of white paint"),
+			zero:     []string{"House of white paint"},
+			positive: []string{"White House officials said"},
+		},
+		{
+			name:     "a stopword in the document keeps its position, as 'trade' <-> 'war' matches it",
+			query:    GradingQuery{ID: "q", Text: "the trade war", Category: "phrase"},
+			docs:     titled("A trade war looms", "War on trade"),
+			zero:     []string{"War on trade"},
+			positive: []string{"A trade war looms"},
+		},
+		{
+			name:     "a stopword inside a phrase keeps its position, as 'war' <2> 'word'",
+			query:    GradingQuery{ID: "q", Text: "war of words", Category: "phrase"},
+			docs:     titled("A war of words erupts", "Words of war", "War words", "War of the words"),
+			zero:     []string{"Words of war", "War words", "War of the words"},
+			positive: []string{"A war of words erupts"},
+		},
+		{
+			name:     "a stopword operand drops out of AND, as to_tsquery drops it",
+			query:    GradingQuery{ID: "q", Text: "climate AND the", Category: "boolean"},
+			docs:     titled("Climate report", "Football results"),
+			zero:     []string{"Football results"},
+			positive: []string{"Climate report"},
+		},
+		{
+			name:     "a stopword operand drops out of NOT",
+			query:    GradingQuery{ID: "q", Text: "climate NOT it", Category: "boolean"},
+			docs:     titled("It is climate", "Football results"),
+			zero:     []string{"Football results"},
+			positive: []string{"It is climate"},
+		},
+		{
+			name:     "a one-letter operand drops out",
+			query:    GradingQuery{ID: "q", Text: "vitamin D AND deficiency", Category: "boolean"},
+			docs:     titled("Vitamin D deficiency rises", "Vitamin pills sell"),
+			zero:     []string{"Vitamin pills sell"},
+			positive: []string{"Vitamin D deficiency rises"},
+		},
+		{
+			name:     "an abbreviation split into one-letter operands drops out",
+			query:    GradingQuery{ID: "q", Text: "U.S. AND election", Category: "boolean"},
+			docs:     titled("U.S. election results", "Football results"),
+			zero:     []string{"Football results"},
+			positive: []string{"U.S. election results"},
+		},
 	}
 	for judge, grade := range termJudges {
 		for _, tt := range tests {

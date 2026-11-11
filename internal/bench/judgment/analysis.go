@@ -24,18 +24,18 @@ var stopwords = map[string]struct{}{
 	"it": {}, "its": {}, "as": {}, "that": {}, "this": {}, "these": {}, "those": {},
 }
 
-// words splits s into its lowercase runs of letters and digits, in order.
-func words(s string) []string {
-	split := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+// tokens splits s into its lowercase runs of letters and digits, in order.
+func tokens(s string) []string {
+	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
-	kept := split[:0]
-	for _, w := range split {
-		if utf8.RuneCountInString(w) >= minTermRunes {
-			kept = append(kept, w)
-		}
-	}
-	return kept
+}
+
+func isWord(token string) bool { return utf8.RuneCountInString(token) >= minTermRunes }
+
+// words are s's tokens long enough to be terms, in order.
+func words(s string) []string {
+	return slices.DeleteFunc(tokens(s), func(t string) bool { return !isWord(t) })
 }
 
 // stem is Snowball English, the stemmer every engine analyses English with.
@@ -51,10 +51,39 @@ func terms(s string) []string {
 	return ws
 }
 
-// analyzedDoc holds each field's terms in order, and the columns a query's
-// filters read.
+// gateTerms analyse s for the category gates as Postgres analyses a tsquery
+// and a tsvector: each token keeps its position, and a stopword or a
+// one-letter token leaves a hole there.
+func gateTerms(s string) []string {
+	ts := tokens(s)
+	for i, t := range ts {
+		if _, stop := stopwords[t]; stop || !isWord(t) {
+			ts[i] = ""
+			continue
+		}
+		ts[i] = stem(t)
+	}
+	return ts
+}
+
+// gatePhrase is s's gate terms without the holes at either end, as
+// phraseto_tsquery drops them. A hole inside it matches any one position.
+func gatePhrase(s string) []string {
+	phrase := gateTerms(s)
+	for len(phrase) > 0 && phrase[0] == "" {
+		phrase = phrase[1:]
+	}
+	for len(phrase) > 0 && phrase[len(phrase)-1] == "" {
+		phrase = phrase[:len(phrase)-1]
+	}
+	return phrase
+}
+
+// analyzedDoc holds each field's terms in order, each field's gate terms, and
+// the columns a query's filters read.
 type analyzedDoc struct {
 	title, description, content []string
+	gateFields                  [][]string
 	publishedAt                 time.Time
 	publisherDomain             string
 }
@@ -64,6 +93,7 @@ func analyzeDoc(d GradingDoc) analyzedDoc {
 		title:           terms(d.Title),
 		description:     terms(d.Description),
 		content:         terms(d.Content),
+		gateFields:      [][]string{gateTerms(d.Title), gateTerms(d.Description), gateTerms(d.Content)},
 		publishedAt:     d.PublishedAt,
 		publisherDomain: d.PublisherDomain,
 	}
@@ -80,17 +110,26 @@ func (d analyzedDoc) holds(term string) bool {
 	return false
 }
 
-// holdsPhrase reports whether one field holds the phrase's terms adjacent and
-// in order.
+// holdsPhrase reports whether one field holds the phrase's gate terms at the
+// phrase's positions; a hole in the phrase matches any term.
 func (d analyzedDoc) holdsPhrase(phrase []string) bool {
-	for _, field := range d.fields() {
+	for _, field := range d.gateFields {
 		for start := 0; start+len(phrase) <= len(field); start++ {
-			if slices.Equal(field[start:start+len(phrase)], phrase) {
+			if phraseAt(field[start:start+len(phrase)], phrase) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func phraseAt(window, phrase []string) bool {
+	for i, term := range phrase {
+		if term != "" && window[i] != term {
+			return false
+		}
+	}
+	return true
 }
 
 // NoQueryTermsError reports a query with no gradable terms. It is a property of
@@ -183,16 +222,13 @@ func readTermQuery(q GradingQuery) (termQuery, error) {
 	var tq termQuery
 	switch q.Category {
 	case suite.CategoryPhrase:
-		tq = termQuery{terms: scoringTerms(q.Text), gate: phraseMatcher(terms(q.Text))}
+		tq = termQuery{terms: scoringTerms(q.Text), gate: operandMatcher(q.Text)}
 	case suite.CategoryBoolean:
 		expr, err := suite.ParseBoolean(q.Text)
 		if err != nil {
 			return termQuery{}, &BooleanTextError{QueryID: q.ID, Err: err}
 		}
-		gate, positives, err := booleanGate(expr)
-		if err != nil {
-			return termQuery{}, &BooleanTextError{QueryID: q.ID, Err: err}
-		}
+		gate, positives := booleanGate(expr)
 		tq = termQuery{terms: scoringTerms(positives...), gate: gate}
 	default:
 		tq = termQuery{terms: scoringTerms(q.Text)}
@@ -242,43 +278,56 @@ func (m anyOf) matches(d analyzedDoc) bool {
 	return false
 }
 
+// operandMatcher matches text's gate terms as one phrase, or nothing when it
+// has none: such an operand drops out, as to_tsquery drops a stopword.
+func operandMatcher(text string) docMatcher {
+	switch phrase := gatePhrase(text); len(phrase) {
+	case 0:
+		return nil
+	case 1:
+		return termMatcher(phrase[0])
+	default:
+		return phraseMatcher(phrase)
+	}
+}
+
 // booleanGate turns a parsed boolean text into the gate it sets and the
-// operands that are not negated.
-func booleanGate(expr suite.BooleanExpr) (docMatcher, []string, error) {
+// operands that are not negated. An operand without gate terms drops out of
+// the AND, OR or NOT holding it, and a group left empty drops out in turn.
+func booleanGate(expr suite.BooleanExpr) (docMatcher, []string) {
 	var positives []string
-	var build func(e suite.BooleanExpr, negated bool) (docMatcher, error)
-	build = func(e suite.BooleanExpr, negated bool) (docMatcher, error) {
+	var build func(e suite.BooleanExpr, negated bool) docMatcher
+	build = func(e suite.BooleanExpr, negated bool) docMatcher {
 		switch e.Kind {
 		case suite.BooleanNot:
-			operand, err := build(e.Operands[0], !negated)
-			return notMatcher{operand: operand}, err
+			if operand := build(e.Operands[0], !negated); operand != nil {
+				return notMatcher{operand: operand}
+			}
+			return nil
 		case suite.BooleanAnd, suite.BooleanOr:
-			operands := make([]docMatcher, len(e.Operands))
-			for i, operand := range e.Operands {
-				m, err := build(operand, negated)
-				if err != nil {
-					return nil, err
+			var operands []docMatcher
+			for _, operand := range e.Operands {
+				if m := build(operand, negated); m != nil {
+					operands = append(operands, m)
 				}
-				operands[i] = m
 			}
-			if e.Kind == suite.BooleanAnd {
-				return allOf(operands), nil
+			switch {
+			case len(operands) == 0:
+				return nil
+			case len(operands) == 1:
+				return operands[0]
+			case e.Kind == suite.BooleanAnd:
+				return allOf(operands)
+			default:
+				return anyOf(operands)
 			}
-			return anyOf(operands), nil
 		default:
-			phrase := terms(e.Operand)
-			if len(phrase) == 0 {
-				return nil, fmt.Errorf("operand %q has no terms", e.Operand)
-			}
-			if !negated {
+			m := operandMatcher(e.Operand)
+			if m != nil && !negated {
 				positives = append(positives, e.Operand)
 			}
-			if len(phrase) == 1 {
-				return termMatcher(phrase[0]), nil
-			}
-			return phraseMatcher(phrase), nil
+			return m
 		}
 	}
-	gate, err := build(expr, false)
-	return gate, positives, err
+	return build(expr, false), positives
 }
