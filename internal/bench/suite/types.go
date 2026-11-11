@@ -43,7 +43,11 @@ type Corpus struct {
 }
 
 type Query struct {
-	ID          string `yaml:"id"`
+	ID string `yaml:"id"`
+	// Text is the query as a user would type it: what the deterministic judges
+	// grade and what a vector engine's query embedding is looked up by.
+	// Description is metadata for the reader.
+	Text        string `yaml:"text,omitempty"`
 	Description string `yaml:"description"`
 	// Category drives per-category aggregation and the judge's grading rule.
 	Category  string                 `yaml:"category,omitempty"`

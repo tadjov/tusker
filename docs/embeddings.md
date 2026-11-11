@@ -232,14 +232,16 @@ datapackage.json          embedding {…, recipe: query-instruct-v1}, suite {id}
 query-vectors.parquet     query_id, text, embedding; suite order
 ```
 
-`text` is the query's `description` exactly as the bench runner passes it to the
+`text` is the suite query's `text` exactly as the bench runner passes it to the
 vector store, in `internal/bench/runner/runner.go`:
 
 ```go
-vec, err := r.config.VectorStore.QueryVector(ctx, q.Description)
+vec, err := r.config.VectorStore.QueryVector(ctx, q.Text)
 ```
 
-The model input is that text wrapped by `query-instruct-v1`. Queries are embedded
+`bench validate` and the vector and hybrid judges look vectors up by the same
+string, so engine and judge see the same query. A query's `description` is never
+embedded. The model input is that text wrapped by `query-instruct-v1`. Queries are embedded
 one per forward pass, so no query's vector depends on the others in the suite.
 The bench refuses query vectors when a suite query is missing from them or its
 stored `text` differs from the suite's current text. The package has no version:

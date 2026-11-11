@@ -31,7 +31,10 @@ templates:
   #     {"query": {"multi_match": {"query": "{{`{{terms}}`}}", "fields": ["title^3", "description^2", "content"]}}, "size": 100, "_source": false, "track_total_hits": false}
 
 queries:
+  # text is the query as a user would type it: the judges grade it and vector
+  # engines embed it. description only explains the query to a reader.
   - id: example-q1
+    text: "climate change"
     description: "Replace with a real search intent — e.g. 'climate change effects on biodiversity'"
     engines:
       pg:

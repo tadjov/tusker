@@ -102,8 +102,8 @@ func gradingPool(t *testing.T, tr lineageTrack, runID string) poolArticles {
 	pf := &pool.PoolFile{
 		Meta: meta.Meta{RunID: runID, Engines: []string{"a"}},
 		Queries: []pool.PoolEntry{
-			{QueryID: "q1", QueryDesc: "climate policy", Docs: []pool.PooledDoc{{DocID: climate, Sources: []string{"a"}}}},
-			{QueryID: "q2", QueryDesc: "election results", Docs: []pool.PooledDoc{{DocID: election, Sources: []string{"a"}}}},
+			{QueryID: "q1", QueryText: "climate policy", Docs: []pool.PooledDoc{{DocID: climate, Sources: []string{"a"}}}},
+			{QueryID: "q2", QueryText: "election results", Docs: []pool.PooledDoc{{DocID: election, Sources: []string{"a"}}}},
 		},
 	}
 	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))

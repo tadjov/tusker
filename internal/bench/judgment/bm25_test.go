@@ -11,7 +11,7 @@ import (
 )
 
 func TestBM25GradePool_RanksByRelevance(t *testing.T) {
-	q := GradingQuery{ID: "q1", Description: "climate change policy"}
+	q := GradingQuery{ID: "q1", Text: "climate change policy"}
 	strong := GradingDoc{ID: uuid.New(), Title: "Climate change policy reshapes energy", Description: "New climate policy targets emissions"}
 	weak := GradingDoc{ID: uuid.New(), Title: "Climate mentioned once", Description: "A short note"}
 	none := GradingDoc{ID: uuid.New(), Title: "Local football results", Description: "Match report"}
@@ -38,7 +38,7 @@ func TestBM25GradePool_RanksByRelevance(t *testing.T) {
 // A query with no usable terms cannot rank anything; grading every doc 0 would
 // pass for a judged pool in which nothing is relevant.
 func TestBM25GradePool_QueryWithoutTermsFails(t *testing.T) {
-	q := GradingQuery{ID: "q1", Description: "the a of"}
+	q := GradingQuery{ID: "q1", Text: "the a of"}
 	doc := GradingDoc{ID: uuid.New(), Title: "anything"}
 
 	_, err := BM25Strategy{}.GradePool(context.Background(), q, []GradingDoc{doc})
@@ -74,7 +74,7 @@ func TestGradeFromNorm(t *testing.T) {
 // that order.
 func bm25Pool(titles ...string) (*pool.PoolFile, *stubStorageReader) {
 	reader := &stubStorageReader{articles: map[uuid.UUID]document.Article{}}
-	entry := pool.PoolEntry{QueryID: "q1", QueryDesc: "climate change"}
+	entry := pool.PoolEntry{QueryID: "q1", QueryText: "climate change"}
 	for _, title := range titles {
 		id := uuid.New()
 		reader.articles[id] = document.Article{ID: id, Title: title}

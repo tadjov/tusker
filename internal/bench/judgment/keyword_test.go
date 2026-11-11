@@ -11,7 +11,7 @@ import (
 func TestKeywordStrategy_Grade(t *testing.T) {
 	s := NewKeywordStrategy()
 	ctx := context.Background()
-	q := GradingQuery{ID: "q1", Description: "climate change global warming"}
+	q := GradingQuery{ID: "q1", Text: "climate change global warming"}
 
 	t.Run("title-dominant match grades highly", func(t *testing.T) {
 		g, err := s.Grade(ctx, q, GradingDoc{
@@ -53,7 +53,7 @@ func TestKeywordStrategy_Grade(t *testing.T) {
 
 	t.Run("empty query errors so runner records as unjudged", func(t *testing.T) {
 		_, err := s.Grade(ctx, GradingQuery{}, GradingDoc{Title: "anything"})
-		assert.ErrorContains(t, err, "no usable description")
+		assert.ErrorContains(t, err, "no usable text")
 	})
 }
 

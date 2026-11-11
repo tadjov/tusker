@@ -163,11 +163,11 @@ jobs:
 id: fixture-semantic
 queries:
   - id: q1
-    description: "climate change policy"
+    text: "climate change policy"
     engines:
       a: { query: '{"query": {"match": {"title": "q1"}}}' }
   - id: q2
-    description: "central bank interest rates"
+    text: "central bank interest rates"
     engines:
       a: { query: '{"query": {"match": {"title": "q2"}}}' }
 `), 0o644))

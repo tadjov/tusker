@@ -474,14 +474,18 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 	}
 }
 
-// queryVector embeds the query once when any of its blocks takes the query
-// vector. Without a store, or when embedding fails, it returns nil and those
-// blocks fail to resolve, recorded per engine.
+// queryVector looks the query's text up once when any of its blocks takes the
+// query vector. Without a store or a text, or when the lookup fails, it returns
+// nil and those blocks fail to resolve, recorded per engine.
 func (r *Runner) queryVector(ctx context.Context, ls *suite.LoadedSuite, q *suite.Query) []float32 {
 	if r.config.VectorStore == nil || !ls.NeedsQueryVector(q) {
 		return nil
 	}
-	vec, err := r.config.VectorStore.QueryVector(ctx, q.Description)
+	if q.Text == "" {
+		slog.Warn("query has no text to look its vector up by; vector queries for this query will not resolve", "query", q.ID)
+		return nil
+	}
+	vec, err := r.config.VectorStore.QueryVector(ctx, q.Text)
 	if err != nil {
 		slog.Warn("query embedding failed; vector queries for this query will not resolve",
 			"query", q.ID, "error", err)

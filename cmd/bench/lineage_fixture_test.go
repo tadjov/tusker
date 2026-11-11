@@ -133,10 +133,14 @@ jobs:
 id: lineage
 queries:
   - id: q1
+    text: first query
+    description: The first lineage query
     engines:
       a: { query: '{"query": {"match": {"title": "q1"}}}' }
       b: { query: '{"query": {"match": {"title": "q1"}}}' }
   - id: q2
+    text: second query
+    description: The second lineage query
     engines:
       a: { query: '{"query": {"match": {"title": "q2"}}}' }
       b: { query: '{"query": {"match": {"title": "q2"}}}' }

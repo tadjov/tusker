@@ -99,7 +99,8 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	return store, nil
 }
 
-// checkSuiteQueries compares descriptions, the text the runner looks vectors up by.
+// checkSuiteQueries compares each query's text, the string engines and judges
+// look vectors up by.
 func checkSuiteQueries(location string, rows packageRows, suitePath string) error {
 	loaded, err := suite.LoadFromFile(suitePath)
 	if err != nil {
@@ -109,9 +110,9 @@ func checkSuiteQueries(location string, rows packageRows, suitePath string) erro
 		stored, ok := rows.textByQueryID[q.ID]
 		switch {
 		case !ok:
-			return &StaleQueryError{Package: location, QueryID: q.ID, Text: q.Description}
-		case stored != q.Description:
-			return &StaleQueryError{Package: location, QueryID: q.ID, Text: q.Description, Stored: &stored}
+			return &StaleQueryError{Package: location, QueryID: q.ID, Text: q.Text}
+		case stored != q.Text:
+			return &StaleQueryError{Package: location, QueryID: q.ID, Text: q.Text, Stored: &stored}
 		}
 	}
 	return nil

@@ -431,7 +431,8 @@ func (s *gradingSession) show(ctx context.Context, position int) error {
 		header += " · " + pair.query.Category
 	}
 	fmt.Fprintf(w, "\n%s\n", cCyan.Sprint(header))
-	printField(w, "query", pair.query.QueryDesc)
+	printField(w, "query", pair.query.QueryText)
+	printField(w, "intent", pair.query.QueryDesc)
 	if len(articles) == 0 {
 		printWarn(w, fmt.Sprintf("article %s is not in the store", pair.docID))
 		return nil

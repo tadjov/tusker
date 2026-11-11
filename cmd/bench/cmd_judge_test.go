@@ -241,7 +241,7 @@ type judgeFixture struct {
 	pool     *pool.PoolFile
 }
 
-func newJudgeFixture(t *testing.T, queryDesc string, titles ...string) *judgeFixture {
+func newJudgeFixture(t *testing.T, queryText string, titles ...string) *judgeFixture {
 	t.Helper()
 	track := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(track, "trec"), 0o755))
@@ -249,7 +249,7 @@ func newJudgeFixture(t *testing.T, queryDesc string, titles ...string) *judgeFix
 	require.NoError(t, os.WriteFile(filepath.Join(track, "suite.yaml"), []byte("schema_version: 1\nid: judge\n"), 0o644))
 
 	fx := &judgeFixture{track: track, articles: articleStore{}}
-	entry := pool.PoolEntry{QueryID: "q1", QueryDesc: queryDesc}
+	entry := pool.PoolEntry{QueryID: "q1", QueryText: queryText}
 	for _, title := range titles {
 		id := uuid.New()
 		fx.articles[id] = document.Article{ID: id, Title: title}
@@ -440,7 +440,7 @@ func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
 	fx := newJudgeFixture(t, "climate change", "climate change summit")
 	q2Doc := uuid.New()
 	fx.articles[q2Doc] = document.Article{ID: q2Doc, Title: "climate report"}
-	fx.pool.Queries = append(fx.pool.Queries, pool.PoolEntry{QueryID: "q2", QueryDesc: "climate", Docs: []pool.PooledDoc{{DocID: q2Doc}}})
+	fx.pool.Queries = append(fx.pool.Queries, pool.PoolEntry{QueryID: "q2", QueryText: "climate", Docs: []pool.PooledDoc{{DocID: q2Doc}}})
 	fx.writePool(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -490,7 +490,7 @@ func TestJudge_VectorGradesWithTheTracksQueryVectors(t *testing.T) {
 
 	fx := &judgeFixture{track: track, articles: articleStore{docID: document.Article{ID: docID, Title: "rates"}}}
 	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{
-		{QueryID: "q2", QueryDesc: queryText, Docs: []pool.PooledDoc{{DocID: docID}}},
+		{QueryID: "q2", QueryText: queryText, Docs: []pool.PooledDoc{{DocID: docID}}},
 	}}
 	fx.writePool(t)
 
@@ -559,4 +559,26 @@ func TestJudge_LexicalIsNoLongerAStrategy(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "keyword")
 	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.lexical.yaml"))
+}
+
+func TestJudge_PoolQueryWithoutTextFailsNamingIt(t *testing.T) {
+	for _, strategy := range []string{"keyword", "bm25"} {
+		t.Run(strategy, func(t *testing.T) {
+			fx := newJudgeFixture(t, "", "climate change summit")
+			fx.pool.Queries[0].QueryDesc = "Coverage of climate change"
+			fx.writePool(t)
+
+			err := fx.judge(t, "--strategy", strategy)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q1"`)
+			assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations."+strategy+".yaml"))
+		})
+	}
+}
+
+func TestJudge_ManualNeedsNoQueryText(t *testing.T) {
+	fx := newJudgeFixture(t, "", "climate change summit")
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
 }

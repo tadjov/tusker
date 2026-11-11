@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -104,6 +106,10 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 		return nil, fmt.Errorf("runner: strategy %q implements no grading interface", r.cfg.Strategy.Name())
 	}
 
+	if err := requireQueryText(pf); err != nil {
+		return nil, err
+	}
+
 	prior := indexExisting(r.cfg.Existing)
 
 	judge := r.cfg.Strategy.Describe()
@@ -133,6 +139,19 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 		}
 	}
 	return jf, errors.Join(unusable...)
+}
+
+func requireQueryText(pf *pool.PoolFile) error {
+	var missing []string
+	for _, entry := range pf.Queries {
+		if entry.QueryText == "" {
+			missing = append(missing, strconv.Quote(entry.QueryID))
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("pool queries %s have no text to grade: give each suite query its text and re-pool", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map[uuid.UUID]int) (Entry, QueryProgress, error) {
@@ -169,7 +188,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		return ge, prog, nil
 	}
 
-	q := GradingQuery{ID: entry.QueryID, Description: entry.QueryDesc, Category: entry.Category}
+	q := GradingQuery{ID: entry.QueryID, Text: entry.QueryText, Description: entry.QueryDesc, Category: entry.Category}
 	var gradedByID map[uuid.UUID]int
 	var err error
 	if ps, ok := r.cfg.Strategy.(PoolStrategy); ok {

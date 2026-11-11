@@ -246,7 +246,7 @@ query embedder running; this is how the bench gets query vectors from the same r
 documents. `scripts/embed_queries.py` writes the package. The bench refuses it when:
 
 - its resource no longer matches the descriptor's hash
-- a query in the `suite.yaml` the jobs run has no row, or its row's `text` differs from the query's `description`; the error names the query id. Edits that leave every description as it was don't need re-embedding
+- a query in the `suite.yaml` the jobs run has no row, or its row's `text` differs from the query's `text`; the error names the query id. Edits that leave every `text` as it was, descriptions included, don't need re-embedding
 - its `embedding.tag` differs from the engines' `embedding_model`, or no engine declares one
 
 A query whose text the package doesn't hold fails with the text in the error. Without a
@@ -293,6 +293,13 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 | `claude-cli` | LLM       | ✅        | `claude -p` subprocess per batch                         |
 | `claude-api` | LLM       | ✅        | Anthropic Messages API per batch                         |
 | `manual`     | Human     | ✅        | Emits `grade: -1` placeholders for hand-grading          |
+
+Every suite query carries `text`, the query as a user would type it (`climate change`,
+`climate AND NOT politics`, or the phrase itself). `keyword` and `bm25` tokenize it, and
+`vector` and `hybrid` look its vector up by it, the same string the engines' query vector
+comes from. `description` only explains the query to a reader. `bench pool` copies `text`
+into each pool entry beside the description and refuses a query without one, and so does
+`bench judge` for every strategy except `manual`. `bench grade` shows the text first.
 
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes

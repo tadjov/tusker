@@ -10,9 +10,12 @@ import (
 	"github.com/tadjov/tusker/internal/storage"
 )
 
-// GradingQuery is the search intent the judge uses to grade.
+// GradingQuery is the query a judge grades against.
 type GradingQuery struct {
-	ID          string
+	ID string
+	// Text is the query as a user would type it. The deterministic judges grade
+	// it and look its vector up by it; Description only describes it.
+	Text        string
 	Description string
 	Category    string
 }

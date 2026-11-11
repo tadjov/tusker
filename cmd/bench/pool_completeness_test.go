@@ -91,7 +91,7 @@ func TestDroppedExecutions_OneJobsSuccessCoversAnother(t *testing.T) {
 	for _, jobs := range [][]*runner.JobResult{{failed, answered}, {answered, failed}} {
 		result := &runner.BenchmarkResult{Jobs: jobs}
 		assert.Empty(t, droppedExecutions(result))
-		pf := buildPoolFile(result, nil, nil, 10)
+		pf := buildPoolFile(result, nil, 10)
 		require.Len(t, pf.Queries, 1)
 		require.Len(t, pf.Queries[0].Docs, 1)
 		assert.Equal(t, doc, pf.Queries[0].Docs[0].DocID)

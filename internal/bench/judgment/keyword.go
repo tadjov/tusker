@@ -10,8 +10,8 @@ import (
 )
 
 // KeywordStrategy is a deterministic baseline judge. It tokenizes the query
-// description, then counts how many distinct query tokens appear in the
-// document's title, description, and content.
+// text, then counts how many distinct query tokens appear in the document's
+// title, description, and content.
 type KeywordStrategy struct{}
 
 const keywordRubricVersion = "v1"
@@ -68,12 +68,12 @@ type NoQueryTermsError struct {
 }
 
 func (e *NoQueryTermsError) Error() string {
-	return fmt.Sprintf("query %q has no usable description (regenerate the pool or set --strategy manual)", e.QueryID)
+	return fmt.Sprintf("query %q has no usable text (fix its text in the suite and re-pool, or set --strategy manual)", e.QueryID)
 }
 
 // queryTerms returns the query's distinct gradable terms, sorted.
 func queryTerms(q GradingQuery) ([]string, error) {
-	terms := tokenizeSlice(q.Description)
+	terms := tokenizeSlice(q.Text)
 	if len(terms) == 0 {
 		return nil, &NoQueryTermsError{QueryID: q.ID}
 	}

@@ -46,7 +46,11 @@ func newGradeFixture(t *testing.T, queries, docsPerQuery int) *gradeFixture {
 	fx := &gradeFixture{track: track, articles: articleStore{}, byTitle: map[string]pairKey{}}
 	fx.pool = &pool.PoolFile{Meta: meta.New("pool")}
 	for q := range queries {
-		entry := pool.PoolEntry{QueryID: fmt.Sprintf("q%02d", q), QueryDesc: fmt.Sprintf("query text %02d", q)}
+		entry := pool.PoolEntry{
+			QueryID:   fmt.Sprintf("q%02d", q),
+			QueryText: fmt.Sprintf("query text %02d", q),
+			QueryDesc: fmt.Sprintf("query intent %02d", q),
+		}
 		for d := range docsPerQuery {
 			id := uuid.New()
 			title := fmt.Sprintf("Story %s-%03d.", entry.QueryID, d)
@@ -246,10 +250,12 @@ func TestGrade_ScreenShowsTheQueryAndTheArticle(t *testing.T) {
 	out, err := fx.grade(t, "q\n")
 	require.NoError(t, err)
 
-	for _, want := range []string{"query text 00", "Story q00-000.", "Example Times", "2024-03-05", "Ministers met in Geneva.", strings.Repeat("a", contentPreviewRunes)} {
+	for _, want := range []string{"query text 00", "query intent 00", "Story q00-000.", "Example Times", "2024-03-05", "Ministers met in Geneva.", strings.Repeat("a", contentPreviewRunes)} {
 		assert.Contains(t, out, want)
 	}
 	assert.NotContains(t, out, "TAIL")
+	assert.Less(t, strings.Index(out, "query text 00"), strings.Index(out, "query intent 00"),
+		"the hand grader reads the query the judge grades before its description")
 }
 
 // A full session graded the same way must read the same whatever the judge

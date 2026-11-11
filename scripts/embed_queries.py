@@ -83,9 +83,7 @@ def load_suite(path: Path) -> Suite:
     for entry in document.get("queries") or []:
         if not isinstance(entry, dict):
             raise embed_corpus.PackageError(f"{path}: every query must be a mapping")
-        query = SuiteQuery(
-            id=entry.get("id") or "", text=entry.get("description") or ""
-        )
+        query = SuiteQuery(id=entry.get("id") or "", text=entry.get("text") or "")
         check_query(query)
         queries.append(query)
     if not queries:
@@ -100,7 +98,7 @@ def load_suite(path: Path) -> Suite:
 def check_query(query: SuiteQuery) -> None:
     if not query.id or not query.text.strip():
         raise embed_corpus.PackageError(
-            f"query {query.id!r} needs an id and a non-empty description"
+            f"query {query.id!r} needs an id and a non-empty text"
         )
 
 

@@ -108,7 +108,8 @@ func editSuite(t *testing.T, track, from, to string) {
 }
 
 const fixtureQ2 = `  - id: q2
-    description: "central bank interest rates"
+    text: "central bank interest rates"
+    description: "Central banks setting interest rates"
 `
 
 func TestOpen_RefusesASuiteQueryThePackageHoldsNoVectorFor(t *testing.T) {
@@ -120,10 +121,11 @@ func TestOpen_RefusesASuiteQueryThePackageHoldsNoVectorFor(t *testing.T) {
 	}{
 		{name: "a query's text changed", from: `"climate change policy"`, to: `"climate change Policy"`, wantID: "q1"},
 		{name: "a query's text gained a trailing space", from: `"central bank interest rates"`, to: `"central bank interest rates "`, wantID: "q2"},
+		{name: "a query's text removed", from: "    text: \"climate change policy\"\n", to: "", wantID: "q1"},
 		{
 			name:   "a query added",
 			from:   fixtureQ2,
-			to:     fixtureQ2 + "    engines:\n      pg: { template: knn }\n  - id: q3\n    description: \"housing prices\"\n",
+			to:     fixtureQ2 + "    engines:\n      pg: { template: knn }\n  - id: q3\n    text: \"housing prices\"\n",
 			wantID: "q3",
 		},
 	}
@@ -154,6 +156,7 @@ func TestOpen_AcceptsASuiteEditedOnlyOutsideItsQueryTexts(t *testing.T) {
 		{name: "a suite name added", from: "id: fixture-semantic\n", to: "id: fixture-semantic\nname: Fixture semantic\n"},
 		{name: "the template's statement changed", from: "LIMIT 10", to: "LIMIT 100"},
 		{name: "a query category added", from: fixtureQ2, to: fixtureQ2 + "    category: economy\n"},
+		{name: "a query description changed", from: `"Policy responses to climate change"`, to: `"How governments answer climate change"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

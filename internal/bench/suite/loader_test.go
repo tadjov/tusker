@@ -253,3 +253,38 @@ queries:
 		})
 	}
 }
+
+func TestParse_QueryText(t *testing.T) {
+	tests := []struct {
+		name, body, want string
+	}{
+		{
+			name: "read as written",
+			body: `queries:
+  - id: q1
+    text: climate AND NOT politics
+    description: Climate coverage that leaves politics out
+    engines:
+      pg: "SELECT 1"
+`,
+			want: "climate AND NOT politics",
+		},
+		{
+			name: "optional, so a legacy suite still loads",
+			body: `queries:
+  - id: q1
+    description: Climate coverage
+    engines:
+      pg: "SELECT 1"
+`,
+			want: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			loaded, err := Parse([]byte(validHeader + tc.body))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, loaded.Suite.Queries[0].Text)
+		})
+	}
+}

@@ -90,7 +90,7 @@ func (s VectorStrategy) vectors(ctx context.Context, q GradingQuery, docs []Grad
 	if s.store == nil {
 		return nil, nil, fmt.Errorf("vector strategy: no vector store configured")
 	}
-	qVec, err := s.store.QueryVector(ctx, q.Description)
+	qVec, err := s.store.QueryVector(ctx, q.Text)
 	if err != nil {
 		return nil, nil, fmt.Errorf("embed query %q: %w", q.ID, err)
 	}
