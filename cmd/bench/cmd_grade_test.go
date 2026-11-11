@@ -21,6 +21,7 @@ import (
 	"github.com/tadjov/tusker/internal/bench/judgment"
 	"github.com/tadjov/tusker/internal/bench/meta"
 	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/bench/suite"
 	"github.com/tadjov/tusker/internal/storage"
 	"github.com/tadjov/tusker/internal/types/document"
 )
@@ -238,6 +239,13 @@ func TestGrade_PairsOfOneQueryAreShownTogether(t *testing.T) {
 
 func TestGrade_ScreenShowsTheQueryAndTheArticle(t *testing.T) {
 	fx := newGradeFixture(t, 1, 1)
+	fx.pool.Queries[0].Filters = suite.Filters{
+		PublisherDomain: "example.org",
+		PublishedAfter:  time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
+		PublishedBefore: time.Date(2024, 4, 1, 12, 30, 0, 0, time.UTC),
+	}
+	require.NoError(t, pool.WritePoolFile(fx.pool, filepath.Join(fx.track, "trec", "pool.yaml")))
+	fx.writeJudge(t, func(int) int { return judgment.GradeRelevant })
 	for id, a := range fx.articles {
 		a.Description = "Ministers met in Geneva."
 		a.PublishedAt = time.Date(2024, 3, 5, 9, 0, 0, 0, time.UTC)
@@ -250,12 +258,32 @@ func TestGrade_ScreenShowsTheQueryAndTheArticle(t *testing.T) {
 	out, err := fx.grade(t, "q\n")
 	require.NoError(t, err)
 
-	for _, want := range []string{"query text 00", "query intent 00", "Story q00-000.", "Example Times", "2024-03-05", "Ministers met in Geneva.", strings.Repeat("a", contentPreviewRunes)} {
+	for _, want := range []string{
+		"query text 00",
+		"description: query intent 00",
+		"publisher_domain=example.org",
+		"published_after=2024-03-01",
+		"published_before=2024-04-01T12:30:00Z",
+		"Story q00-000.",
+		"Example Times (example.org)",
+		"2024-03-05",
+		"Ministers met in Geneva.",
+		strings.Repeat("a", contentPreviewRunes),
+	} {
 		assert.Contains(t, out, want)
 	}
 	assert.NotContains(t, out, "TAIL")
 	assert.Less(t, strings.Index(out, "query text 00"), strings.Index(out, "query intent 00"),
 		"the hand grader reads the query the judge grades before its description")
+}
+
+func TestGrade_ScreenShowsNoFiltersLineForAnUnfilteredQuery(t *testing.T) {
+	fx := newGradeFixture(t, 1, 1)
+
+	out, err := fx.grade(t, "q\n")
+
+	require.NoError(t, err)
+	assert.NotContains(t, out, "filters:")
 }
 
 // A full session graded the same way must read the same whatever the judge

@@ -299,7 +299,8 @@ Every suite query carries `text`, the query as a user would type it (`climate ch
 `vector` and `hybrid` look its vector up by it, the same string the engines' query vector
 comes from. `description` only explains the query to a reader. `bench pool` copies `text`
 into each pool entry beside the description and refuses a query without one, and so does
-`bench judge` for every strategy except `manual`. `bench grade` shows the text first.
+`bench judge` for every strategy except `manual`. `bench grade` shows the text first, then the
+description and the query's filters, with each article's publisher domain beside its name.
 
 `keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
 Unicode letters and digits, two runes or longer (`US` counts), each stemmed with Snowball
