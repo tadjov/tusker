@@ -131,3 +131,18 @@ func TestRun_SuiteEditedMidRunLeavesTheRunAsRead(t *testing.T) {
 		})
 	}
 }
+
+// A filter bound is an instant, so rewriting it in another zone changes
+// nothing the judges compared.
+func TestRun_FilterBoundRewrittenInAnotherZoneRunsClean(t *testing.T) {
+	tr := templatedTrack(t)
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: first query\n",
+		"    text: first query\n    filters:\n      published_after: 2024-03-01T02:00:00+02:00\n")
+	tr.judgeEveryPooledDoc(t, tr.pool(t), 1)
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "2024-03-01T02:00:00+02:00", "2024-03-01T00:00:00Z")
+
+	_, err := execute(t, newRunCmd(), tr.dir)
+
+	require.NoError(t, err)
+	assert.NotNil(t, tr.latestReport(t))
+}
