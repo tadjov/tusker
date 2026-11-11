@@ -307,8 +307,10 @@ each filter bound in UTC, the instant the judges compare.
 Unicode letters and digits, single letters included (`US`, and the `D` of `vitamin D`), each
 stemmed with Snowball English (Porter2), so `elections` matches `election`. Stopwords are
 Postgres's `english.stop`, Snowball's 127-word English list, which holds the 33 words of
-Lucene's `_english_` that Elasticsearch and ParadeDB stop. A stopword never scores: it leaves
-the query's terms, and it blanks its position in the gate terms of query and document alike.
+Lucene's `_english_` that Elasticsearch and ParadeDB stop. A stopword is never a term of the
+query or of a document, so it neither scores nor counts toward a document's bm25 length, and
+it blanks its position in the gate terms of both. The word is skipped, not its stem, so
+`Downing` never matches the stopword `down`.
 A phrase made only of stopwords (`will not`) has nothing to grade, as its `phraseto_tsquery`
 is empty.
 

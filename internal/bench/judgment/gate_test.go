@@ -170,6 +170,27 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 			positive: []string{"Brexit deal agreed"},
 		},
 		{
+			name:     "a stem equal to a stopword never matches that stopword",
+			query:    GradingQuery{ID: "q", Text: "Downing AND Johnson", Category: "boolean"},
+			docs:     titled("Prices went down, Johnson said", "Downing Street: Johnson said"),
+			zero:     []string{"Prices went down, Johnson said"},
+			positive: []string{"Downing Street: Johnson said"},
+		},
+		{
+			name:     "a one-word phrase stemming to a stopword never matches that stopword",
+			query:    GradingQuery{ID: "q", Text: "others", Category: "phrase"},
+			docs:     titled("The other day", "Others agree"),
+			zero:     []string{"The other day"},
+			positive: []string{"Others agree"},
+		},
+		{
+			name:     "a phrase stemming to a stopword needs the word that is not one",
+			query:    GradingQuery{ID: "q", Text: "others say", Category: "phrase"},
+			docs:     titled("Other say", "Others say"),
+			zero:     []string{"Other say"},
+			positive: []string{"Others say"},
+		},
+		{
 			name:     "a stopword operand drops out of AND, as to_tsquery drops it",
 			query:    GradingQuery{ID: "q", Text: "climate AND the", Category: "boolean"},
 			docs:     titled("Climate report", "Football results"),

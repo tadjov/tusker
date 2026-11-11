@@ -100,6 +100,8 @@ func TestKeywordStrategy_GradesWhatTheEnginesMatch(t *testing.T) {
 		{name: "a singular query term matches its plural", text: "election", doc: GradingDoc{Title: "Elections were certified"}, want: GradeHighly},
 		{name: "a two-letter query term counts", text: "US", doc: GradingDoc{Title: "US economy slows"}, want: GradeHighly},
 		{name: "news is a query term", text: "fake news", doc: GradingDoc{Title: "Media roundup", Content: "The news cycle moved on."}, want: GradeRelevant},
+		{name: "stems equal to stopwords never match those stopwords", text: "others willing", doc: GradingDoc{Title: "The other side will win"}, want: GradeNotRelev},
+		{name: "stems equal to stopwords match the same words", text: "others willing", doc: GradingDoc{Title: "Others willing to help"}, want: GradeHighly},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

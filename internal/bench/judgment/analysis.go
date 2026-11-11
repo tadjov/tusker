@@ -13,8 +13,8 @@ import (
 )
 
 // stopwords are Postgres's english.stop, Snowball's English list, which holds
-// Lucene's _english_. They never score: a query's terms leave them out, and
-// they blank their position in the gate terms of query and document alike.
+// Lucene's _english_. A stopword is never a term of a query or a document, and
+// it blanks its position in the gate terms of both.
 var stopwords = map[string]struct{}{
 	"i": {}, "me": {}, "my": {}, "myself": {}, "we": {}, "our": {}, "ours": {}, "ourselves": {},
 	"you": {}, "your": {}, "yours": {}, "yourself": {}, "yourselves": {}, "he": {}, "him": {},
@@ -45,14 +45,17 @@ func words(s string) []string {
 // stem is Snowball English (Porter2).
 func stem(word string) string { return english.Stem(word, true) }
 
-// terms are the stems of s's words, in order: the analysis every term judge
-// applies to query and document alike.
+// terms are the stems of s's words that are not stopwords, in order: the
+// analysis every term judge applies to query and document alike. Skipping the
+// stopword itself, not its stem, keeps "Downing" from matching "down".
 func terms(s string) []string {
-	ws := words(s)
-	for i, w := range ws {
-		ws[i] = stem(w)
+	var out []string
+	for _, w := range words(s) {
+		if _, stop := stopwords[w]; !stop {
+			out = append(out, stem(w))
+		}
 	}
-	return ws
+	return out
 }
 
 // gateTerms analyse s for the category gates as Postgres analyses a tsquery
@@ -167,16 +170,11 @@ func FailsWholeQuery(err error) bool {
 	return errors.As(err, &noTerms) || errors.As(err, &unparsed)
 }
 
-// scoringTerms returns the distinct stems of the texts' words that are not
-// stopwords, sorted.
+// scoringTerms returns the texts' distinct terms, sorted.
 func scoringTerms(texts ...string) []string {
 	var out []string
 	for _, text := range texts {
-		for _, w := range words(text) {
-			if _, skip := stopwords[w]; !skip {
-				out = append(out, stem(w))
-			}
-		}
+		out = append(out, terms(text)...)
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
