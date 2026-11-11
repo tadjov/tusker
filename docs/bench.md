@@ -287,7 +287,7 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 | Strategy     | Class     | Status   | Description                                              |
 |--------------|-----------|----------|----------------------------------------------------------|
 | `keyword`    | Heuristic | ✅        | Token-overlap baseline — fast, deterministic, no network |
-| `bm25`       | Heuristic | ✅        | Pool-local Okapi BM25, normalised → grade (no network)   |
+| `bm25`       | Heuristic | ✅        | Pool-local Okapi BM25 over its score bound → grade       |
 | `vector`     | Heuristic | ✅        | Cosine similarity; doc vectors from the store → grade    |
 | `hybrid`     | Heuristic | ✅        | Weighted BM25 + vector fusion → grade                    |
 | `claude-cli` | LLM       | ✅        | `claude -p` subprocess per batch                         |
@@ -329,6 +329,24 @@ filters:
 date fails either, as a comparison against a NULL `published_at` does. `bench pool` copies the
 filters into the pool entry, and `keyword` and `bm25` grade an article that violates one 0,
 the same gate as the category's. `vector` and `hybrid` do not read them.
+
+`bm25` divides a document's score by Σ (k1 + 1)·idf(t) over the query's scoring terms, the
+bound each term's contribution stays under, so the norm lies in [0, 1) and a grade depends on
+the query and the pool's term statistics (N, df, avgdl), never on another document's score:
+adding an engine to the pool does not regrade what the others found. At average length a
+document holding every term tf times has the norm tf/(tf + k1) with k1 = 1.5, so the grades
+are pinned as
+
+| norm   | grade | lowest case it admits, at average length |
+|--------|-------|-------------------------------------------|
+| ≥ 0.50 | 3     | every term twice (0.57); once is 0.40      |
+| ≥ 0.30 | 2     | every term once (0.40)                     |
+| ≥ 0.15 | 1     | one of two equally rare terms once (0.20)  |
+| < 0.15 | 0     | one of three equally rare terms once (0.13) |
+
+Every scoring term counts toward the bound, so a boolean query's `OR` alternatives share it:
+a document holding one of two equally rare alternatives once reaches 0.20 at most. `hybrid`
+still fuses the pool-maximum-normalised bm25 score with its own thresholds.
 
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes

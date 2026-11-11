@@ -3,6 +3,7 @@ package judgment
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -240,5 +241,66 @@ func TestBM25GradePool_TwoLetterQueryTermCounts(t *testing.T) {
 
 	if got[us.ID] <= got[uk.ID] {
 		t.Errorf("US doc graded %d, UK doc %d: want the doc holding the query term graded higher", got[us.ID], got[uk.ID])
+	}
+}
+
+// Every doc is four terms long, so avgdl = 4 and each doc sits at average
+// length; climate and change each occur in three of the five docs, so they
+// share one idf. At average length a term occurring tf times scores
+// idf·(k1+1)·tf/(tf+k1), and the norm divides by Σ (k1+1)·idf over the query's
+// terms: every term once is 1/(1+1.5) = 0.40, every term twice is
+// 2/(2+1.5) = 0.571, one of the two terms once is 0.40/2 = 0.20.
+func TestBM25GradePool_WorkedThresholdCases(t *testing.T) {
+	docs := []GradingDoc{
+		{ID: uuid.New(), Title: "climate change alpha beta"},
+		{ID: uuid.New(), Title: "climate climate change change"},
+		{ID: uuid.New(), Title: "climate gamma delta epsilon"},
+		{ID: uuid.New(), Title: "change zeta theta iota"},
+		{ID: uuid.New(), Title: "omega sigma kappa lambda"},
+	}
+	want := map[string]int{
+		"climate change alpha beta":     GradeRelevant,
+		"climate climate change change": GradeHighly,
+		"climate gamma delta epsilon":   GradeMarginally,
+		"change zeta theta iota":        GradeMarginally,
+		"omega sigma kappa lambda":      GradeNotRelev,
+	}
+
+	got := bm25Grades(t, "climate change", docs)
+
+	for _, d := range docs {
+		if got[d.ID] != want[d.Title] {
+			t.Errorf("%q graded %d, want %d", d.Title, got[d.ID], want[d.Title])
+		}
+	}
+}
+
+// Both pools hold 20 docs: the doc under test and one rival, each 100 terms
+// long and holding climate, and 18 one-term docs without it. N = 20,
+// df(climate) = 2 and avgdl = 218/20 = 10.9 in both, so the doc under test
+// scores the same in both. In the first pool the rival holds climate once and
+// ties it; in the second it holds climate 80 times and scores
+// (80/(80+K)) / (1/(1+K)) = 10.3 times as much, with K = 1.5·(0.25+0.75·100/10.9).
+func TestBM25GradePool_GradeIgnoresHowFarTheBestDocOutscoresIt(t *testing.T) {
+	filler := func(n int) string { return strings.TrimSpace(strings.Repeat("filler ", n)) }
+	underTest := GradingDoc{ID: uuid.New(), Title: "climate", Content: filler(99)}
+	pool := func(rivalClimates int) []GradingDoc {
+		rival := GradingDoc{
+			ID:      uuid.New(),
+			Title:   strings.TrimSpace(strings.Repeat("climate ", rivalClimates)),
+			Content: filler(100 - rivalClimates),
+		}
+		docs := []GradingDoc{underTest, rival}
+		for range 18 {
+			docs = append(docs, GradingDoc{ID: uuid.New(), Title: "sport"})
+		}
+		return docs
+	}
+
+	tied := bm25Grades(t, "climate", pool(1))[underTest.ID]
+	outscored := bm25Grades(t, "climate", pool(80))[underTest.ID]
+
+	if tied != outscored {
+		t.Errorf("grade %d when the best doc ties it, %d when the best doc scores 10x it", tied, outscored)
 	}
 }

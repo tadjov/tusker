@@ -87,16 +87,20 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 			positive: []string{"The trade war escalates"},
 		},
 		{
-			name:     "OR and parentheses",
-			query:    GradingQuery{ID: "q", Text: "(election OR referendum) AND NOT football", Category: "boolean"},
-			docs:     titled("Referendum result announced", "Election day", "Football referendum", "Weather report"),
+			name:  "OR and parentheses",
+			query: GradingQuery{ID: "q", Text: "(election OR referendum) AND NOT football", Category: "boolean"},
+			docs: append([]GradingDoc{
+				{ID: uuid.New(), Title: "Referendum", Content: "The referendum on the referendum law"},
+				{ID: uuid.New(), Title: "Election", Content: "Election day and the election count"},
+			}, titled("Football referendum", "Weather report")...),
 			zero:     []string{"Football referendum", "Weather report"},
-			positive: []string{"Referendum result announced", "Election day"},
+			positive: []string{"Referendum", "Election"},
 		},
 		{
-			name:     "NOT binds tighter than AND, and AND tighter than OR",
-			query:    GradingQuery{ID: "q", Text: "climate OR energy AND NOT politics", Category: "boolean"},
-			docs:     titled("Climate politics", "Energy politics", "Energy prices"),
+			name:  "NOT binds tighter than AND, and AND tighter than OR",
+			query: GradingQuery{ID: "q", Text: "climate OR energy AND NOT politics", Category: "boolean"},
+			docs: append(titled("Climate politics", "Energy politics"),
+				GradingDoc{ID: uuid.New(), Title: "Energy prices", Content: "Energy costs and energy bills"}),
 			zero:     []string{"Energy politics"},
 			positive: []string{"Climate politics", "Energy prices"},
 		},
@@ -164,5 +168,32 @@ func TestTermJudges_RefuseABooleanTextThatDoesNotParse(t *testing.T) {
 				t.Errorf("%s on %q: err = %v, want a NoQueryTermsError for q1", judge, text, err)
 			}
 		}
+	}
+}
+
+func TestTermJudges_GradeTheQueryTextNeverTheDescription(t *testing.T) {
+	perfect := GradingDoc{
+		ID:          uuid.New(),
+		Title:       "Climate change is accelerating",
+		Description: "Scientists warn climate change is speeding up",
+		Content:     "Climate change reshapes weather, and climate change drives migration.",
+	}
+	docs := append([]GradingDoc{perfect}, titled("Local football results", "Markets close higher", "Weather today")...)
+	const description = "Simple keyword search for climate change articles"
+
+	for judge, grade := range termJudges {
+		t.Run(judge, func(t *testing.T) {
+			got := grade(t, GradingQuery{ID: "q1", Text: "climate change", Description: description}, docs)
+
+			assert.Equal(t, GradeHighly, got[perfect.Title])
+		})
+	}
+
+	described := GradingQuery{ID: "q1", Description: description}
+	_, keywordErr := NewKeywordStrategy().Grade(context.Background(), described, perfect)
+	_, bm25Err := NewBM25Strategy().GradePool(context.Background(), described, docs)
+	for judge, err := range map[string]error{"keyword": keywordErr, "bm25": bm25Err} {
+		var noTerms *NoQueryTermsError
+		assert.True(t, errors.As(err, &noTerms), "%s graded a query with only a description: err = %v", judge, err)
 	}
 }

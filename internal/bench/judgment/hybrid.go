@@ -22,7 +22,6 @@ const hybridRubricVersion = "v1"
 // score is a weighted sum mapped to a grade 0-3. It judges the hybrid track on
 // its own terms — neither pure keyword nor pure semantic relevance alone.
 type HybridStrategy struct {
-	bm25   BM25Strategy
 	vector *VectorStrategy
 }
 
@@ -62,7 +61,7 @@ func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []Gr
 	if err != nil {
 		return nil, err
 	}
-	bm25Norms := s.bm25.normScores(bm25Terms, analyzeDocs(docs))
+	bm25Norms := poolMaxNorms(bm25Score(bm25Terms, analyzeDocs(docs)).docs)
 	qVec, vecs, err := s.vector.vectors(ctx, q, docs)
 	if err != nil {
 		return nil, fmt.Errorf("hybrid vector component: %w", err)
