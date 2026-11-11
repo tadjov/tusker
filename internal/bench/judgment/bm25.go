@@ -33,9 +33,9 @@ func (BM25Strategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyBM25), RubricVersion: bm25RubricVersion}
 }
 
-// GradePool gives 0 to a document the query's category gate refuses; the term
-// statistics still count it.
-func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
+// GradePool gives 0 to a document the query's filters or category gate refuse;
+// the term statistics still count it.
+func (BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
 	tq, err := readTermQuery(q)
 	if err != nil {
 		return nil, err

@@ -22,7 +22,7 @@ func (KeywordStrategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyKeyword), RubricVersion: keywordRubricVersion}
 }
 
-// Grade gives 0 to a document the query's category gate refuses.
+// Grade gives 0 to a document the query's filters or category gate refuse.
 func (KeywordStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
 	tq, err := readTermQuery(q)
 	if err != nil {

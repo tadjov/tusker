@@ -346,16 +346,17 @@ adding an engine to the pool does not regrade what the others found. At average 
 document holding every term tf times has the norm tf/(tf + k1) with k1 = 1.5, so the grades
 are pinned as
 
-| norm   | grade | lowest case it admits, at average length |
-|--------|-------|-------------------------------------------|
-| ≥ 0.50 | 3     | every term twice (0.57); once is 0.40      |
-| ≥ 0.30 | 2     | every term once (0.40)                     |
-| ≥ 0.15 | 1     | one of two equally rare terms once (0.20)  |
-| < 0.15 | 0     | one of three equally rare terms once (0.13) |
+| norm   | grade | anchor case at average length              |
+|--------|-------|--------------------------------------------|
+| ≥ 0.50 | 3     | every term twice: 0.57                     |
+| ≥ 0.30 | 2     | every term once: 0.40                      |
+| ≥ 0.15 | 1     | one of two equally rare terms once: 0.20   |
+| < 0.15 | 0     | one of three equally rare terms once: 0.13 |
 
 Every scoring term counts toward the bound, so a boolean query's `OR` alternatives share it:
-a document holding one of two equally rare alternatives once reaches 0.20 at most. `hybrid`
-still fuses the pool-maximum-normalised bm25 score with its own thresholds.
+at average length, a document holding one of two equally rare alternatives once normalises to
+0.20, against 0.40 for one holding both. `hybrid` still fuses the pool-maximum-normalised bm25
+score with its own thresholds.
 
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes
