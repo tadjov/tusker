@@ -303,8 +303,9 @@ into each pool entry beside the description and refuses a query without one, and
 description and the query's filters, with each article's publisher domain beside its name.
 
 `keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
-Unicode letters and digits, two runes or longer (`US` counts), each stemmed with Snowball
-English (Porter2), so `elections` matches `election`. Stopwords are Postgres's `english.stop`,
+Unicode letters and digits, single letters included (`US`, and the `D` of `vitamin D`), each
+stemmed with Snowball English (Porter2), so `elections` matches `election`. Stopwords are
+Postgres's `english.stop`,
 Snowball's 127-word English list, which holds the 33 words of Lucene's `_english_` that
 Elasticsearch and ParadeDB stop. A stopword never scores: it leaves the query's terms, and
 it blanks its position in the gate terms of query and document alike. A phrase made only of
@@ -312,15 +313,16 @@ stopwords (`will not`) has nothing to grade, as its `phraseto_tsquery` is empty.
 
 Both apply the query's category as a gate before scoring. A `phrase` query grades 0 unless
 one field holds its stemmed words at the phrase's positions. Gate terms are analysed as
-Postgres analyses a phrase: a stopword or one-letter word leaves the phrase at either end,
-and inside it keeps its position and matches any word, so `war of words` needs `war`, any
+Postgres analyses a phrase: a stopword leaves the phrase at either end, and inside it keeps
+its position and matches any word, so `war of words` needs `war`, any
 one word, then `words`, as `'war' <2> 'word'` does. A `boolean` query's text is parsed
 with `internal/token`'s grammar, read as the native Postgres boolean parser reads it: `AND`,
 `OR`, `NOT` in any case, parentheses, quoted phrases, `AND` between adjacent operands, `NOT`
 binding tighter than `AND` and `AND` tighter than `OR`; a document for which the expression is false grades 0, and negated
-operands never score. An operand holding only stopwords or one-letter words drops out of the
-expression, as `to_tsquery` drops a stopword, so `vitamin D AND deficiency` needs `vitamin`
-and `deficiency`. Scoring ranks only the documents that pass, and `bm25` still counts
+operands never score. An operand holding only stopwords drops out of the expression, as
+`to_tsquery` drops a stopword. A single letter that is not a stopword stays a term, as it
+does in Postgres and Elasticsearch: `vitamin D AND deficiency` needs the `d`, and `U.S.`
+needs `u` but not `s`, which is a stopword. Scoring ranks only the documents that pass, and `bm25` still counts
 every pooled document in its term statistics. A boolean text that does not parse fails the
 suite load, naming the query, so `bench validate` and `bench pool` refuse it; in a pool
 written before, the judges leave that query unjudged, as they do a query without terms.

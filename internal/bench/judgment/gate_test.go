@@ -184,18 +184,18 @@ func TestTermJudges_GatePhraseAndBooleanQueries(t *testing.T) {
 			positive: []string{"It is climate"},
 		},
 		{
-			name:     "a one-letter operand drops out",
+			name:     "a one-letter word is a term, as to_tsquery builds 'vitamin' & 'd' & 'defici'",
 			query:    GradingQuery{ID: "q", Text: "vitamin D AND deficiency", Category: "boolean"},
-			docs:     titled("Vitamin D deficiency rises", "Vitamin pills sell"),
-			zero:     []string{"Vitamin pills sell"},
+			docs:     titled("Vitamin D deficiency rises", "Vitamin deficiency", "Vitamin pills sell"),
+			zero:     []string{"Vitamin deficiency", "Vitamin pills sell"},
 			positive: []string{"Vitamin D deficiency rises"},
 		},
 		{
-			name:     "an abbreviation split into one-letter operands drops out",
+			name:     "an abbreviation keeps its letters that are not stopwords, so U.S. needs u and not s",
 			query:    GradingQuery{ID: "q", Text: "U.S. AND election", Category: "boolean"},
-			docs:     titled("U.S. election results", "Football results"),
-			zero:     []string{"Football results"},
-			positive: []string{"U.S. election results"},
+			docs:     titled("U.S. election results", "U election results", "UK election results", "Football results"),
+			zero:     []string{"UK election results", "Football results"},
+			positive: []string{"U.S. election results", "U election results"},
 		},
 	}
 	for judge, grade := range termJudges {

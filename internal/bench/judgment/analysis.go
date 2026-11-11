@@ -7,14 +7,10 @@ import (
 	"strings"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/kljensen/snowball/english"
 	"github.com/tadjov/tusker/internal/bench/suite"
 )
-
-// minTermRunes keeps two-letter terms such as "US" and "EU".
-const minTermRunes = 2
 
 // stopwords are Postgres's english.stop, Snowball's English list, which holds
 // Lucene's _english_. They never score: a query's terms leave them out, and
@@ -39,18 +35,11 @@ var stopwords = map[string]struct{}{
 	"s": {}, "t": {}, "can": {}, "will": {}, "just": {}, "don": {}, "should": {}, "now": {},
 }
 
-// tokens splits s into its lowercase runs of letters and digits, in order.
-func tokens(s string) []string {
+// words splits s into its lowercase runs of letters and digits, in order.
+func words(s string) []string {
 	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
-}
-
-func isWord(token string) bool { return utf8.RuneCountInString(token) >= minTermRunes }
-
-// words are s's tokens long enough to be terms, in order.
-func words(s string) []string {
-	return slices.DeleteFunc(tokens(s), func(t string) bool { return !isWord(t) })
 }
 
 // stem is Snowball English (Porter2).
@@ -67,18 +56,18 @@ func terms(s string) []string {
 }
 
 // gateTerms analyse s for the category gates as Postgres analyses a tsquery
-// and a tsvector: each token keeps its position, and a stopword or a
-// one-letter token leaves a hole there.
+// and a tsvector: each word keeps its position, and a stopword leaves a hole
+// there.
 func gateTerms(s string) []string {
-	ts := tokens(s)
-	for i, t := range ts {
-		if _, stop := stopwords[t]; stop || !isWord(t) {
-			ts[i] = ""
+	ws := words(s)
+	for i, w := range ws {
+		if _, stop := stopwords[w]; stop {
+			ws[i] = ""
 			continue
 		}
-		ts[i] = stem(t)
+		ws[i] = stem(w)
 	}
-	return ts
+	return ws
 }
 
 // gatePhrase is s's gate terms without the holes at either end, as
