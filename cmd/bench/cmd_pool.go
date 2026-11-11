@@ -210,7 +210,8 @@ func buildPoolFile(result *runner.BenchmarkResult, queries map[string]suite.Quer
 }
 
 // collectSuiteQueries reads every job's suite queries by id. A query without
-// text fails: the judges grade it, so the pool must carry it.
+// text fails: the judges grade it, so a pool must carry it and a run compares
+// it with the pool's.
 func collectSuiteQueries(bs *spec.BenchSpec) (map[string]suite.Query, error) {
 	queries := make(map[string]suite.Query)
 	seen := make(map[string]struct{})

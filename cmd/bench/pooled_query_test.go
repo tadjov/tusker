@@ -1,9 +1,17 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,4 +64,51 @@ func TestRun_LatencyOnlySkipsThePooledQueryCheck(t *testing.T) {
 	_, err := execute(t, newRunCmd(), tr.dir, "--latency-only")
 
 	require.NoError(t, err)
+}
+
+// A run reads the suites once, before measuring, so an edit made while the
+// engines answer touches neither the run nor its report.
+func TestRun_SuiteEditedMidRunLeavesTheRunAsRead(t *testing.T) {
+	tests := []struct {
+		name  string
+		suite func(current string) string
+	}{
+		{name: "a query's text", suite: func(current string) string {
+			return strings.Replace(current, "text: first query", "text: first query, edited", 1)
+		}},
+		{name: "into a file that no longer loads", suite: func(string) string { return "queries: [" }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := uuid.New()
+			cluster, err := url.Parse(fakeCluster(t, map[string]*fakeIndex{
+				"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+				"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+			}))
+			require.NoError(t, err)
+			var armed, fired atomic.Bool
+			var suitePath string
+			forward := httputil.NewSingleHostReverseProxy(cluster)
+			engines := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if armed.Load() && strings.Contains(r.URL.Path, "_search") && !fired.Swap(true) {
+					current, err := os.ReadFile(suitePath)
+					if err == nil {
+						_ = os.WriteFile(suitePath, []byte(tt.suite(string(current))), 0o644)
+					}
+				}
+				forward.ServeHTTP(w, r)
+			}))
+			t.Cleanup(engines.Close)
+			tr := newLineageTrack(t, engines.URL)
+			suitePath = filepath.Join(tr.dir, "suite.yaml")
+			tr.judgeEveryPooledDoc(t, tr.pool(t), 1)
+			armed.Store(true)
+
+			_, err = execute(t, newRunCmd(), tr.dir)
+
+			require.NoError(t, err)
+			require.True(t, fired.Load(), "the suite was never edited mid-run")
+			assert.NotNil(t, tr.latestReport(t))
+		})
+	}
 }

@@ -169,6 +169,13 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		bs.Jobs = filtered
 	}
 
+	// Read before measuring, so an edit made while the engines answer cannot
+	// fail the run or lose its report.
+	suiteQueries, err := collectSuiteQueries(bs)
+	if err != nil {
+		return fmt.Errorf("load suite queries: %w", err)
+	}
+
 	vectorStore, closeVectorStore, err := buildQueryVectorStore(cmd.Context(), bs, tr)
 	if err != nil {
 		return fmt.Errorf("build vector store: %w", err)
@@ -228,10 +235,6 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		JobFilter:    jobFilter,
 		LatencyOnly:  f.latencyOnly,
 		EngineParams: declaredEngineParams(bs),
-	}
-	suiteQueries, err := loadSuiteQueries(bs)
-	if err != nil {
-		return err
 	}
 	failures := runFailures(result, judgments, suiteQueries)
 	rpt.Settings.Incomplete = append(slices.Clone(failures),
@@ -506,21 +509,6 @@ func rewrittenQueries(result *runner.BenchmarkResult, pf *pool.PoolFile, suiteQu
 		}
 	}
 	return slices.Sorted(maps.Keys(rewritten))
-}
-
-// loadSuiteQueries reads the queries of every suite the spec's jobs run, by id.
-func loadSuiteQueries(bs *spec.BenchSpec) (map[string]suite.Query, error) {
-	queries := make(map[string]suite.Query)
-	for _, path := range loadedSuitePaths(bs) {
-		ls, err := suite.LoadFromFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("load suite %s: %w", path, err)
-		}
-		for _, q := range ls.Suite.Queries {
-			queries[q.ID] = q
-		}
-	}
-	return queries, nil
 }
 
 // retrievedWithoutGrade counts the unpooled (query, doc) pairs ranked within the
