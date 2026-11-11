@@ -591,3 +591,24 @@ func TestJudge_ManualNeedsNoQueryText(t *testing.T) {
 
 	require.NoError(t, fx.judge(t, "--strategy", "manual"))
 }
+
+// keyword, bm25, vector and hybrid grade the query's text through new rules,
+// so a file their v1 rubric graded cannot be resumed.
+func TestCheckResumeCompat_RefusesTheDeterministicJudgesV1Rubric(t *testing.T) {
+	for _, strategy := range []judgment.Strategy{
+		judgment.NewKeywordStrategy(),
+		judgment.NewBM25Strategy(),
+		judgment.NewVectorStrategyWithStore(stubVectorStore{}, "qwen3-embedding:0.6b@1024"),
+		judgment.NewHybridStrategyWithStore(stubVectorStore{}, "qwen3-embedding:0.6b@1024"),
+	} {
+		t.Run(strategy.Name(), func(t *testing.T) {
+			v1 := strategy.Describe()
+			v1.RubricVersion = "v1"
+
+			err := checkResumeCompat(fileWith(v1), strategy)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "rubric v1")
+		})
+	}
+}

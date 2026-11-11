@@ -15,7 +15,7 @@ const (
 	hybridVectorWeight = 0.5
 )
 
-const hybridRubricVersion = "v1"
+const hybridRubricVersion = "v2"
 
 // HybridStrategy fuses the BM25 lexical signal (pool-normalised) with vector
 // cosine similarity (semantic signal), mirroring hybrid retrieval. The combined

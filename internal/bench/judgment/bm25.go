@@ -10,7 +10,7 @@ import (
 const (
 	bm25K1            = 1.5
 	bm25B             = 0.75
-	bm25RubricVersion = "v1"
+	bm25RubricVersion = "v2"
 )
 
 // BM25Strategy grades candidates with Okapi BM25 computed over the per-query

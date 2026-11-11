@@ -49,7 +49,7 @@ func (s VectorStrategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyVector), Model: s.model, RubricVersion: vectorRubricVersion}
 }
 
-const vectorRubricVersion = "v1"
+const vectorRubricVersion = "v2"
 
 // vectorRelevantDepth is the depth of exact search the semantic track measures
 // recall at.

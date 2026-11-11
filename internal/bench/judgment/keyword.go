@@ -12,7 +12,7 @@ import (
 // title, description, and content.
 type KeywordStrategy struct{}
 
-const keywordRubricVersion = "v1"
+const keywordRubricVersion = "v2"
 
 func NewKeywordStrategy() *KeywordStrategy { return &KeywordStrategy{} }
 
