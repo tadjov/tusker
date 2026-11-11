@@ -358,8 +358,12 @@ filters:
 
 `publisher_domain` is the lowercase eTLD+1 an article's url derives to (`reuters.com`, never
 `www.reuters.com` or `uk.reuters.com`); any other spelling fails the suite load, naming the
-query. `published_after` and `published_before` are strict, and an article without a publication
-date fails either, as a comparison against a NULL `published_at` does. `bench pool` copies the
+query. `published_after` admits an article published at or after it and `published_before`
+one published strictly before it, so consecutive ranges neither overlap nor leave a gap; an
+article without a publication date fails either, as a comparison against a NULL
+`published_at` does. Engine templates must compare the same way to agree with the judges:
+`published_at >= $after AND published_at < $before` in Postgres, `gte` and `lt` in an
+Elasticsearch `range`. `bench pool` copies the
 filters into the pool entry, and `keyword` and `bm25` grade an article that violates one 0,
 the same gate as the category's. `vector` and `hybrid` do not read them.
 

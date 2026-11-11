@@ -204,7 +204,7 @@ func passesFilters(f suite.Filters, d analyzedDoc) bool {
 		return false
 	}
 	dated := !d.publishedAt.IsZero()
-	if !f.PublishedAfter.IsZero() && (!dated || !d.publishedAt.After(f.PublishedAfter)) {
+	if !f.PublishedAfter.IsZero() && (!dated || d.publishedAt.Before(f.PublishedAfter)) {
 		return false
 	}
 	if !f.PublishedBefore.IsZero() && (!dated || !d.publishedAt.Before(f.PublishedBefore)) {

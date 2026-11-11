@@ -61,7 +61,7 @@ type Query struct {
 // statement for the query applies. A zero field filters nothing.
 type Filters struct {
 	PublisherDomain string `yaml:"publisher_domain,omitempty"`
-	// PublishedAfter admits articles published strictly later.
+	// PublishedAfter admits articles published at or after it.
 	PublishedAfter time.Time `yaml:"published_after,omitempty"`
 	// PublishedBefore admits articles published strictly earlier.
 	PublishedBefore time.Time `yaml:"published_before,omitempty"`
