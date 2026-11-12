@@ -505,7 +505,7 @@ Each pool entry records, under `request_digests`, a sha256 per engine of the req
 Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: `trec/annotations.<S>.yaml`, with `graded_count` and `unjudged_count` in its meta block. The command writes the file and then exits non-zero when any pooled doc is left unjudged (`manual` excepted).
 
 Key flags:
-- `--resume`: skip docs already graded (errors if the strategy, provider, model, effort, prompt version, invocation, batching or rubric version changed). `bm25`, `vector` and `hybrid` skip only fully graded queries and regrade any other query whole, since they grade the whole pool at once
+- `--resume`: skip docs already graded (errors naming each field of the judge block that changed). `bm25`, `vector` and `hybrid` skip only fully graded queries and regrade any other query whole, since they grade the whole pool at once
 - `--model M`: the LLM judge's model, a full id or `haiku`, `sonnet`, `opus`, `fable`; required
 - `--effort E`: the LLM judge's effort, `low` (default), `medium`, `high`, `xhigh` or `max`
 - `--batch N`: grade N LLM docs per request instead of one (`bm25`, `vector` and `hybrid` grade each query's whole pool at once and refuse it)

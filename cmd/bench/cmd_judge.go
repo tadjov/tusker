@@ -311,9 +311,8 @@ func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error
 }
 
 // checkResumeCompat verifies that a prior judgments file is safe to resume
-// under the judge block now. Any difference — strategy, provider, model, prompt
-// version, invocation, batching or rubric version — means the two runs
-// disagree on who is grading, and appending would corrupt the set.
+// under the judge block now. A difference in any field of the judge block means
+// the two runs disagree on who is grading, and appending would corrupt the set.
 func checkResumeCompat(prior *judgment.File, now meta.Judge) error {
 	was := prior.Judge()
 	if (was == meta.Judge{}) {
