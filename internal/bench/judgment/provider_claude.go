@@ -3,6 +3,8 @@ package judgment
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -135,9 +138,9 @@ func (p *claudeCLIProvider) args(system string) []string {
 // Complete runs the CLI from an empty directory of its own, so it finds no
 // project files to load, and sends the user payload on stdin.
 func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
-	workDir, err := os.MkdirTemp("", "bench-judge-")
+	workDir, err := requestWorkDir(req)
 	if err != nil {
-		return "", fmt.Errorf("create the judge's working directory: %w", err)
+		return "", err
 	}
 	defer os.RemoveAll(workDir)
 
@@ -163,6 +166,20 @@ func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest)
 		return "", fmt.Errorf("%s reported an error: %s", p.binary, result.Result)
 	}
 	return result.Result, nil
+}
+
+// requestWorkDir creates an empty directory named after req: the CLI tells the
+// model its working directory, so a random name would change every request.
+func requestWorkDir(req CompletionRequest) (string, error) {
+	sum := sha256.Sum256([]byte(req.System + "\x00" + req.User))
+	dir := filepath.Join(os.TempDir(), "bench-judge-"+hex.EncodeToString(sum[:8]))
+	if err := os.RemoveAll(dir); err != nil {
+		return "", fmt.Errorf("clear the judge's working directory: %w", err)
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		return "", fmt.Errorf("create the judge's working directory: %w", err)
+	}
+	return dir, nil
 }
 
 // claudeCLIResult is the envelope --output-format json prints.

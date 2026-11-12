@@ -72,6 +72,32 @@ func TestClaudeCLIProvider_GradesIsolatedAndRecordsItsInvocation(t *testing.T) {
 	assert.Equal(t, want, strings.Fields(s.Describe().Invocation))
 }
 
+// The CLI tells the model its working directory, so the same request runs
+// from the same directory every time, and another request from another.
+func TestClaudeCLIProvider_RunsTheSameRequestFromTheSameDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	doc := GradingDoc{ID: uuid.New(), Title: "Climate summit opens in Belem"}
+	cli := newFakeClaudeCLI(t, `{"doc_id":"`+doc.ID.String()+`","grade":2}`)
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5", Effort: EffortLow})
+	require.NoError(t, err)
+	gradeFrom := func(text string) string {
+		t.Helper()
+		_, err := s.Grade(context.Background(), GradingQuery{ID: "q1", Text: text}, doc)
+		require.NoError(t, err)
+		call := cli.call(t)
+		assert.Empty(t, call.cwdListing)
+		assert.NoDirExists(t, call.cwd)
+		return call.cwd
+	}
+
+	first, again, other := gradeFrom("climate summit"), gradeFrom("climate summit"), gradeFrom("Belem")
+
+	assert.Equal(t, first, again)
+	assert.NotEqual(t, first, other)
+}
+
 func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")

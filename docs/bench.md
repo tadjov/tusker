@@ -310,8 +310,9 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   model the doc satisfies the constraint and asks how well it answers the query.
 - The prompt carries the query's `text` exactly as the pool stores it. `description` never
   reaches the model.
-- One doc per request by default, so a request's bytes depend on the query and the doc alone,
-  never on pool order or on which engine found the doc. `--batch N` puts N docs in a
+- One doc per request by default, so what a request holds depends on the query and the doc
+  alone, never on pool order or on which engine found the doc. On `claude-api` the request
+  is byte-identical; `claude-cli` adds its own blocks, below. `--batch N` puts N docs in a
   request, drawn from a shuffle of the query's pool seeded by `--seed` (default 1). The
   judge block then records `batch_size` and `batch_seed`.
 - Every request carries one rubric and shows each doc's title and description in full and
@@ -327,7 +328,12 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   --no-session-persistence` and `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`. No settings,
   CLAUDE.md, MCP server, tool, skill or advisor reaches the grade, and the rubric goes in
   through `--system-prompt`. It signs in with the operator's claude.ai login (`--bare` would
-  need `ANTHROPIC_API_KEY`). The judge block's `invocation` records the exact command.
+  need `ANTHROPIC_API_KEY`). The judge block's `invocation` records the exact command. The
+  CLI still adds the date, the OS version, a `cc_version` billing block and an Agent SDK
+  preamble ahead of the rubric, which the claude.ai login cannot turn off
+  (`CLAUDE_CODE_SIMPLE` is `--bare`), so the two providers do not grade under one system
+  prompt. It runs from a directory named after the request, since the CLI also tells the
+  model its working directory.
 - `claude-api` sends `output_config.effort` and leaves out `temperature`, `top_p`, `top_k`,
   `thinking` and server-side fallbacks. Current models reject the first four, and a fallback
   would grade with a model the judge block does not name.
