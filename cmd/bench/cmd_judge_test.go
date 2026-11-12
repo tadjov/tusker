@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -662,7 +663,7 @@ func TestCheckResumeCompat_RefusesTheDeterministicJudgesV1Rubric(t *testing.T) {
 			err := checkResumeCompat(fileWith(v1), strategy.Describe())
 
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), `rubric_version: was "v1", now "v2"`)
+			assert.Contains(t, err.Error(), fmt.Sprintf("rubric_version: was %q, now %q", "v1", strategy.Describe().RubricVersion))
 		})
 	}
 }
@@ -809,7 +810,7 @@ func TestCheckResumeCompat_RefusesTheLLMJudgesV2Prompt(t *testing.T) {
 	err = checkResumeCompat(fileWith(v2), strategy.Describe())
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `prompt_version: was "v2", now "v3"`)
+	assert.Contains(t, err.Error(), fmt.Sprintf("prompt_version: was %q, now %q", "v2", judgment.PromptVersion))
 }
 
 // The LLM judge's zeros come from the shared phrase, boolean and filter gates,
@@ -827,7 +828,7 @@ func TestCheckResumeCompat_RefusesAnLLMFileGradedUnderOtherGates(t *testing.T) {
 	err = checkResumeCompat(fileWith(was), now)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `gate_version: was "v0", now "v1"`)
+	assert.Contains(t, err.Error(), fmt.Sprintf("gate_version: was %q, now %q", "v0", now.GateVersion))
 }
 
 // An empty --model, as an unset make variable gives, fails naming the flag
