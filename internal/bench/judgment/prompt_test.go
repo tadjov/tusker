@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildBatchGradingPrompt(t *testing.T) {
-	q := GradingQuery{ID: "q1", Description: "climate change"}
+	q := GradingQuery{ID: "q1", Text: "climate change"}
 	d1 := GradingDoc{ID: uuid.New(), Title: "Doc one"}
 	d2 := GradingDoc{ID: uuid.New(), Title: "Doc two", Description: "desc", Content: "content snippet"}
 
@@ -109,12 +109,12 @@ func TestConstraintFor(t *testing.T) {
 func TestBuildGradingPrompt_IncludesCategoryConstraint(t *testing.T) {
 	doc := GradingDoc{ID: uuid.New(), Title: "Markets slide"}
 
-	phrase := BuildGradingPrompt(GradingQuery{ID: "q", Description: "stock market crash", Category: "phrase"}, doc)
+	phrase := BuildGradingPrompt(GradingQuery{ID: "q", Text: "stock market crash", Category: "phrase"}, doc)
 	if !strings.Contains(phrase, "PHRASE query") {
 		t.Error("phrase query prompt should carry the phrase constraint")
 	}
 
-	keyword := BuildGradingPrompt(GradingQuery{ID: "q", Description: "stock market crash", Category: "keyword"}, doc)
+	keyword := BuildGradingPrompt(GradingQuery{ID: "q", Text: "stock market crash", Category: "keyword"}, doc)
 	if strings.Contains(keyword, "PHRASE query") {
 		t.Error("keyword query prompt should grade on topic alone")
 	}
@@ -123,12 +123,12 @@ func TestBuildGradingPrompt_IncludesCategoryConstraint(t *testing.T) {
 func TestBuildBatchGradingPrompt_IncludesCategoryConstraint(t *testing.T) {
 	docs := []GradingDoc{{ID: uuid.New(), Title: "Tech news"}}
 
-	boolean := BuildBatchGradingPrompt(GradingQuery{ID: "q", Description: "technology NOT crypto", Category: "boolean"}, docs)
+	boolean := BuildBatchGradingPrompt(GradingQuery{ID: "q", Text: "technology NOT crypto", Category: "boolean"}, docs)
 	if !strings.Contains(boolean, "BOOLEAN query") {
 		t.Error("boolean query batch prompt should carry the boolean constraint")
 	}
 
-	untagged := BuildBatchGradingPrompt(GradingQuery{ID: "q", Description: "technology"}, docs)
+	untagged := BuildBatchGradingPrompt(GradingQuery{ID: "q", Text: "technology"}, docs)
 	if strings.Contains(untagged, "BOOLEAN query") {
 		t.Error("untagged query batch prompt should carry no constraint")
 	}

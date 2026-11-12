@@ -41,7 +41,7 @@ func BuildGradingPrompt(q GradingQuery, doc GradingDoc) string {
 		sb.WriteString(c)
 		sb.WriteString("\n\n")
 	}
-	fmt.Fprintf(&sb, "Query: %s\n\n", q.Description)
+	fmt.Fprintf(&sb, "Query: %s\n\n", q.Text)
 	fmt.Fprintf(&sb, "Article (doc_id: %s):\n", doc.ID)
 	fmt.Fprintf(&sb, "Title: %s\n", doc.Title)
 	if doc.Description != "" {
@@ -129,7 +129,7 @@ func BuildBatchGradingPrompt(q GradingQuery, docs []GradingDoc) string {
 		sb.WriteString(c)
 		sb.WriteString("\n\n")
 	}
-	fmt.Fprintf(&sb, "Query: %s\n\n", q.Description)
+	fmt.Fprintf(&sb, "Query: %s\n\n", q.Text)
 	fmt.Fprintf(&sb, "Grade each of the %d candidate articles below.\n\n", len(docs))
 
 	for i, d := range docs {
