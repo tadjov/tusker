@@ -300,16 +300,22 @@ func TestLLMJudge_LeavesADocWithoutAGradeUnjudged(t *testing.T) {
 	}
 }
 
-// A grade that fails is no grade: Grade reports it as unjudged, never as 0.
+// A grade that fails is no grade: Grade reports it as unjudged, never as 0,
+// whether the query cannot be read, the request fails or the reply has none.
 func TestLLMJudge_GradeReportsAFailedGradeAsUnjudged(t *testing.T) {
-	tests := map[string]*fakeLLMProvider{
-		"the request fails":      {err: errors.New("connection refused")},
-		"the reply has no grade": {reply: func(CompletionRequest) string { return "I cannot grade this." }},
+	floods := GradingQuery{ID: "q1", Text: "floods"}
+	tests := map[string]struct {
+		query    GradingQuery
+		provider *fakeLLMProvider
+	}{
+		"the query has no terms":          {query: GradingQuery{ID: "q1", Text: "the of a"}, provider: &fakeLLMProvider{grade: func(uuid.UUID) int { return GradeHighly }}},
+		"the boolean text does not parse": {query: GradingQuery{ID: "q1", Text: "floods AND (", Category: suite.CategoryBoolean}, provider: &fakeLLMProvider{grade: func(uuid.UUID) int { return GradeHighly }}},
+		"the request fails":               {query: floods, provider: &fakeLLMProvider{err: errors.New("connection refused")}},
+		"the reply has no grade":          {query: floods, provider: &fakeLLMProvider{reply: func(CompletionRequest) string { return "I cannot grade this." }}},
 	}
-	for name, provider := range tests {
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			grade, err := (&LLMStrategy{provider: provider}).Grade(context.Background(),
-				GradingQuery{ID: "q1", Text: "floods"}, GradingDoc{ID: uuid.New(), Title: "Floods reach Belgrade"})
+			grade, err := (&LLMStrategy{provider: tt.provider}).Grade(context.Background(), tt.query, GradingDoc{ID: uuid.New(), Title: "Floods reach Belgrade"})
 
 			require.Error(t, err)
 			assert.Equal(t, GradeUnjudged, grade)
