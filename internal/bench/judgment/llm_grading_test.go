@@ -239,6 +239,8 @@ func TestLLMJudge_ResumedBatchesAreWhatIsLeftOfTheFreshOnes(t *testing.T) {
 	resumed := llmBatches(t, readable, pf, cfg)
 
 	require.NotEmpty(t, resumed)
+	assert.True(t, slices.ContainsFunc(resumed, func(batch []uuid.UUID) bool { return len(batch) == 1 }),
+		"the resume leaves a one-doc batch, still sent as a batch")
 	for _, batch := range resumed {
 		assert.True(t, slices.ContainsFunc(fresh, func(whole []uuid.UUID) bool {
 			return !slices.ContainsFunc(batch, func(id uuid.UUID) bool { return !slices.Contains(whole, id) })
@@ -269,7 +271,7 @@ func TestLLMJudge_LeavesADocWithoutAGradeUnjudged(t *testing.T) {
 		reply func(missing, graded uuid.UUID, req CompletionRequest) string
 	}{
 		{name: "relevance instead of grade", batch: 2, reply: func(missing, graded uuid.UUID, req CompletionRequest) string {
-			if len(docIDsIn(req.User)) > 1 {
+			if isBatchRequest(req) {
 				return `[{"doc_id":"` + missing.String() + `","relevance":3},{"doc_id":"` + graded.String() + `","grade":2}]`
 			}
 			return `{"doc_id":"` + missing.String() + `","relevance":3}`
@@ -316,8 +318,8 @@ func TestLLMJudge_GradeReportsAFailedGradeAsUnjudged(t *testing.T) {
 }
 
 // fakeLLMProvider grades every doc a request names with grade(doc), answering
-// a request naming several docs with an array and one naming a single doc with
-// an object. A set err fails every request.
+// a batch request with an array, however few docs it holds, and a single-doc
+// request with an object. A set err fails every request.
 type fakeLLMProvider struct {
 	grade func(uuid.UUID) int
 	reply func(CompletionRequest) string
@@ -348,13 +350,17 @@ func (f *fakeLLMProvider) Complete(_ context.Context, req CompletionRequest) (st
 	}
 	var out []byte
 	var err error
-	if len(entries) > 1 {
+	if isBatchRequest(req) {
 		out, err = json.Marshal(entries)
 	} else {
 		out, err = json.Marshal(entries[0])
 	}
 	return string(out), err
 }
+
+// isBatchRequest reports whether GradeBatch built req: only it asks for the
+// batch budget.
+func isBatchRequest(req CompletionRequest) bool { return req.MaxTokens == llmBatchMaxOutputTokens }
 
 func (f *fakeLLMProvider) requests() []CompletionRequest {
 	f.mu.Lock()
@@ -436,6 +442,7 @@ func llmBatches(t *testing.T, articles []document.Article, pf *pool.PoolFile, cf
 	require.NoError(t, err)
 	var out [][]uuid.UUID
 	for _, req := range provider.requests() {
+		require.Equal(t, llmBatchMaxOutputTokens, req.MaxTokens, "every request is a batch, none a per-doc fallback")
 		ids := docIDsIn(req.User)
 		slices.SortFunc(ids, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
 		out = append(out, ids)
