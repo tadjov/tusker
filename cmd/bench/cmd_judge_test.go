@@ -113,6 +113,20 @@ func TestCheckResumeCompat_PromptVersionMismatch(t *testing.T) {
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
 
+// A CLI judge run with other flags reads other settings, so its grades are not
+// the same judge's.
+func TestCheckResumeCompat_InvocationMismatch(t *testing.T) {
+	was := llmJudge("claude-cli", "claude-haiku-5-5")
+	was.Invocation = "claude -p --model claude-haiku-5-5"
+	now := was
+	now.Invocation = "claude -p --safe-mode --model claude-haiku-5-5"
+
+	err := checkResumeCompat(fileWith(was), fakeStrategy{judge: now})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "judge mismatch")
+}
+
 // Legacy annotations (flat strategy/judge_model, no judge block) normalize to a
 // judge whose strategy is the old selector, which cannot equal the new
 // llm/claude-cli shape — so resuming onto them is correctly refused. Those

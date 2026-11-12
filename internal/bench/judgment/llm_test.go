@@ -1,14 +1,8 @@
 package judgment
 
 import (
-	"context"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
 )
 
 func TestParseSelector(t *testing.T) {
@@ -217,71 +211,4 @@ func TestLLMStrategyUnknownProvider(t *testing.T) {
 	if _, err := NewLLMStrategy(StrategyOptions{Provider: "codex-cli"}); err == nil {
 		t.Error("NewLLMStrategy with unregistered provider should fail")
 	}
-}
-
-// TestLLMCLIProviderPassesModelFlag is the behavioural guard: the model must reach the
-// subprocess as `--model <id>`, not be inherited from the CLI's ambient config.
-func TestLLMCLIProviderPassesModelFlag(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("fake binary is a POSIX shell script")
-	}
-
-	docID := uuid.New()
-	argsFile := filepath.Join(t.TempDir(), "args.txt")
-	bin := writeFakeCLI(t, argsFile, `[{"doc_id":"`+docID.String()+`","grade":2}]`)
-
-	s, err := NewLLMStrategy(StrategyOptions{
-		Provider:  ProviderClaudeCLI,
-		CLIBinary: bin,
-		Model:     "sonnet",
-	})
-	if err != nil {
-		t.Fatalf("NewLLMStrategy: %v", err)
-	}
-
-	graded, err := s.GradeBatch(context.Background(),
-		GradingQuery{ID: "q1", Description: "climate change"},
-		[]GradingDoc{{ID: docID, Title: "Some title"}},
-	)
-	if err != nil {
-		t.Fatalf("GradeBatch: %v", err)
-	}
-	if len(graded) != 1 || graded[0].Grade != 2 {
-		t.Fatalf("GradeBatch = %+v, want one doc graded 2", graded)
-	}
-
-	recorded, err := os.ReadFile(argsFile)
-	if err != nil {
-		t.Fatalf("read recorded args: %v", err)
-	}
-	got := string(recorded)
-
-	if !strings.Contains(got, "--model claude-sonnet-5") {
-		t.Errorf("subprocess args %q missing `--model claude-sonnet-5`", got)
-	}
-	if !strings.Contains(got, "-p") {
-		t.Errorf("subprocess args %q missing `-p`", got)
-	}
-}
-
-// writeFakeCLI creates a stand-in vendor CLI that records the flags it was
-// called with (every argument up to and including -p, so the prompt body stays
-// out of the fixture) and prints a canned grading response.
-func writeFakeCLI(t *testing.T, argsFile, stdout string) string {
-	t.Helper()
-
-	script := `#!/bin/sh
-for a in "$@"; do
-  printf '%s ' "$a" >> "` + argsFile + `"
-  [ "$a" = "-p" ] && break
-done
-cat <<'JSON'
-` + stdout + `
-JSON
-`
-	path := filepath.Join(t.TempDir(), "fake-cli")
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake cli: %v", err)
-	}
-	return path
 }

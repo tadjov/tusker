@@ -68,6 +68,9 @@ type Judge struct {
 	Provider      string `yaml:"provider,omitempty" json:"provider,omitempty"`
 	Model         string `yaml:"model,omitempty" json:"model,omitempty"`
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
+	// Invocation is how an LLM judge reached its model: the exact command line,
+	// or the API version.
+	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
 	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
 	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }

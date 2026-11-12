@@ -1,0 +1,163 @@
+package judgment
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// The claude CLI grades from an empty directory of its own, with the
+// operator's settings, CLAUDE.md, MCP servers, tools, skills and advisor off,
+// and the judge block records the command it ran.
+func TestClaudeCLIProvider_GradesIsolatedAndRecordsItsInvocation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	docID := uuid.New()
+	cli := newFakeClaudeCLI(t, `{"doc_id":"`+docID.String()+`","grade":2}`)
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5"})
+	require.NoError(t, err)
+
+	grade, err := s.Grade(context.Background(),
+		GradingQuery{ID: "q1", Text: "climate change"},
+		GradingDoc{ID: docID, Title: "Climate summit opens in Belem"})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, grade)
+	call := cli.call(t)
+	assert.Equal(t, "claude-haiku-5-5", call.flag(t, "--model"))
+	for _, isolating := range []string{"--safe-mode", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"} {
+		assert.Contains(t, call.args, isolating)
+	}
+	assert.Empty(t, call.flag(t, "--setting-sources"), "no user, project or local settings")
+	assert.Empty(t, call.flag(t, "--tools"), "no tools")
+	assert.Equal(t, "1", call.disableAdvisor, "the advisor is a server-side tool --tools leaves on")
+
+	system := call.flag(t, "--system-prompt")
+	assert.NotEmpty(t, system)
+	assert.Contains(t, call.stdin, "Climate summit opens in Belem")
+	assert.NotContains(t, call.stdin, system, "the system prompt goes through its flag, not into the message")
+
+	workDir, err := os.Getwd()
+	require.NoError(t, err)
+	assert.NotEqual(t, workDir, call.cwd)
+	assert.Empty(t, call.cwdListing, "nothing in the working directory for the CLI to discover")
+	assert.NoDirExists(t, call.cwd, "the working directory is removed after the call")
+
+	want := []string{"CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1", cli.path}
+	for _, arg := range call.args {
+		switch arg {
+		case "":
+			arg = `""`
+		case system:
+			arg = "<system-prompt>"
+		}
+		want = append(want, arg)
+	}
+	assert.Equal(t, want, strings.Fields(s.Describe().Invocation))
+}
+
+func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	cli := newFakeClaudeCLI(t, "")
+	cli.reportError(t, "Not logged in")
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5"})
+	require.NoError(t, err)
+
+	_, err = s.Grade(context.Background(), GradingQuery{ID: "q1", Text: "climate change"}, GradingDoc{ID: uuid.New(), Title: "Climate"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Not logged in")
+}
+
+// fakeClaudeCLI stands in for the claude binary: it records the call it gets
+// and answers with --output-format json's result envelope around a reply.
+type fakeClaudeCLI struct {
+	path      string
+	recordDir string
+}
+
+func newFakeClaudeCLI(t *testing.T, reply string) *fakeClaudeCLI {
+	t.Helper()
+	cli := &fakeClaudeCLI{recordDir: t.TempDir()}
+	cli.path = filepath.Join(t.TempDir(), "claude")
+	envelope, err := json.Marshal(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": reply})
+	require.NoError(t, err)
+	cli.write(t, string(envelope), 0)
+	return cli
+}
+
+func (c *fakeClaudeCLI) reportError(t *testing.T, message string) {
+	t.Helper()
+	envelope, err := json.Marshal(map[string]any{"type": "result", "subtype": "success", "is_error": true, "result": message})
+	require.NoError(t, err)
+	c.write(t, string(envelope), 1)
+}
+
+func (c *fakeClaudeCLI) write(t *testing.T, stdout string, exitCode int) {
+	t.Helper()
+	record := func(name string) string { return filepath.Join(c.recordDir, name) }
+	script := `#!/bin/sh
+printf '%s\0' "$@" > "` + record("args") + `"
+pwd -P > "` + record("cwd") + `"
+ls -A > "` + record("listing") + `"
+printf '%s' "${CLAUDE_CODE_DISABLE_ADVISOR_TOOL-unset}" > "` + record("advisor") + `"
+cat > "` + record("stdin") + `"
+cat <<'JSON'
+` + stdout + `
+JSON
+exit ` + strconv.Itoa(exitCode) + `
+`
+	require.NoError(t, os.WriteFile(c.path, []byte(script), 0o755))
+}
+
+type fakeCLICall struct {
+	args           []string
+	cwd            string
+	cwdListing     string
+	disableAdvisor string
+	stdin          string
+}
+
+func (c *fakeClaudeCLI) call(t *testing.T) fakeCLICall {
+	t.Helper()
+	read := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(c.recordDir, name))
+		require.NoError(t, err)
+		return string(b)
+	}
+	args := bytes.Split(bytes.TrimSuffix([]byte(read("args")), []byte{0}), []byte{0})
+	call := fakeCLICall{
+		cwd:            strings.TrimSpace(read("cwd")),
+		cwdListing:     read("listing"),
+		disableAdvisor: read("advisor"),
+		stdin:          read("stdin"),
+	}
+	for _, a := range args {
+		call.args = append(call.args, string(a))
+	}
+	return call
+}
+
+func (c fakeCLICall) flag(t *testing.T, name string) string {
+	t.Helper()
+	for i, a := range c.args {
+		if a == name && i+1 < len(c.args) {
+			return c.args[i+1]
+		}
+	}
+	t.Fatalf("flag %s with a value not in %q", name, c.args)
+	return ""
+}

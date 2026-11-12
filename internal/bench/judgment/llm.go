@@ -40,6 +40,7 @@ func (s *LLMStrategy) Describe() meta.Judge {
 		Provider:      string(s.provider.Name()),
 		Model:         s.provider.Model(),
 		PromptVersion: PromptVersion,
+		Invocation:    s.provider.Invocation(),
 	}
 }
 

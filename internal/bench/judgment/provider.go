@@ -36,6 +36,9 @@ type LLMProvider interface {
 	// PreferredBatchSize is how many candidates this endpoint grades well in one
 	// call. Subprocess transports favour smaller batches than HTTP ones.
 	PreferredBatchSize() int
+	// Invocation is the exact command line or request version a call runs
+	// with, recorded in the judge block.
+	Invocation() string
 	// Complete sends one prompt and returns the assistant's raw text.
 	Complete(ctx context.Context, req CompletionRequest) (string, error)
 }

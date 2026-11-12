@@ -64,7 +64,23 @@ func ClaudeModelAliases() []string {
 	return out
 }
 
-// claudeCLIProvider drives `claude --model <id> -p <prompt>` as a subprocess.
+// claudeCLIIsolation keeps the operator's settings, CLAUDE.md, MCP servers,
+// tools and skills out of every grading call. --bare would as well, but it
+// reads no OAuth login, only ANTHROPIC_API_KEY.
+var claudeCLIIsolation = []string{
+	"--safe-mode",
+	"--setting-sources", "",
+	"--strict-mcp-config",
+	"--tools", "",
+	"--disable-slash-commands",
+	"--no-session-persistence",
+}
+
+// claudeCLIDisableAdvisor turns off the advisor, a server-side tool that
+// --tools "" leaves on.
+const claudeCLIDisableAdvisor = "CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1"
+
+// claudeCLIProvider drives `claude -p` as a subprocess.
 type claudeCLIProvider struct {
 	binary string
 	model  string
@@ -85,26 +101,61 @@ func (p *claudeCLIProvider) Name() Provider          { return ProviderClaudeCLI 
 func (p *claudeCLIProvider) Model() string           { return p.model }
 func (p *claudeCLIProvider) PreferredBatchSize() int { return claudeCLIBatchSize }
 
-// Complete prepends the system prompt to the user payload: `claude -p` takes a
-// single positional message. The model is pinned on every invocation rather
-// than inherited from the CLI's ambient config, so the judge block names the
-// model that actually graded.
-func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
-	prompt := req.User
-	if req.System != "" {
-		prompt = req.System + "\n\n" + req.User
+func (p *claudeCLIProvider) Invocation() string {
+	args := p.args("<system-prompt>")
+	words := make([]string, 0, len(args)+2)
+	words = append(words, claudeCLIDisableAdvisor, p.binary)
+	for _, arg := range args {
+		if arg == "" {
+			arg = `""`
+		}
+		words = append(words, arg)
 	}
+	return strings.Join(words, " ")
+}
 
-	out, err := exec.CommandContext(ctx, p.binary, "--model", p.model, "-p", prompt).Output()
+func (p *claudeCLIProvider) args(system string) []string {
+	args := append([]string{"-p"}, claudeCLIIsolation...)
+	return append(args, "--output-format", "json", "--model", p.model, "--system-prompt", system)
+}
+
+// Complete runs the CLI from an empty directory of its own, so it finds no
+// project files to load, and sends the user payload on stdin.
+func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
+	workDir, err := os.MkdirTemp("", "bench-judge-")
+	if err != nil {
+		return "", fmt.Errorf("create the judge's working directory: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	cmd := exec.CommandContext(ctx, p.binary, p.args(req.System)...)
+	cmd.Dir = workDir
+	cmd.Env = append(os.Environ(), claudeCLIDisableAdvisor)
+	cmd.Stdin = strings.NewReader(req.User)
+	out, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return "", fmt.Errorf("%s --model %s -p exit %d: %s",
-				p.binary, p.model, exitErr.ExitCode(), string(exitErr.Stderr))
+			return "", fmt.Errorf("%s exit %d: %s %s",
+				p.binary, exitErr.ExitCode(), bytes.TrimSpace(exitErr.Stderr), bytes.TrimSpace(out))
 		}
-		return "", fmt.Errorf("%s --model %s -p: %w", p.binary, p.model, err)
+		return "", fmt.Errorf("run %s: %w", p.binary, err)
 	}
-	return string(out), nil
+
+	var result claudeCLIResult
+	if err := json.Unmarshal(out, &result); err != nil {
+		return "", fmt.Errorf("parse %s output: %w (output: %q)", p.binary, err, out)
+	}
+	if result.IsError {
+		return "", fmt.Errorf("%s reported an error: %s", p.binary, result.Result)
+	}
+	return result.Result, nil
+}
+
+// claudeCLIResult is the envelope --output-format json prints.
+type claudeCLIResult struct {
+	IsError bool   `json:"is_error"`
+	Result  string `json:"result"`
 }
 
 // claudeAPIProvider drives the Anthropic Messages API.
@@ -138,6 +189,7 @@ func newClaudeAPIProvider(opts StrategyOptions) (LLMProvider, error) {
 func (p *claudeAPIProvider) Name() Provider          { return ProviderClaudeAPI }
 func (p *claudeAPIProvider) Model() string           { return p.model }
 func (p *claudeAPIProvider) PreferredBatchSize() int { return claudeAPIBatchSize }
+func (p *claudeAPIProvider) Invocation() string      { return "anthropic-version: " + claudeAPIVersion }
 
 func (p *claudeAPIProvider) Complete(ctx context.Context, cr CompletionRequest) (string, error) {
 	payload, err := json.Marshal(messagesRequest{
