@@ -190,9 +190,14 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 	var queryVector []float32
 	if in.loaded.NeedsQueryVector(&q) {
 		if in.store != nil {
+			if q.Text == "" {
+				row.status = "EMBED_ERR"
+				row.detail = "query has no text to look its vector up by"
+				return row
+			}
 			// Embed the real query so dimensionality (a 1-dim stub vs VECTOR(1024))
 			// is exercised here, not deferred to pool/run.
-			vec, err := in.store.QueryVector(ctx, q.Description)
+			vec, err := in.store.QueryVector(ctx, q.Text)
 			if err != nil {
 				row.status = "EMBED_ERR"
 				row.detail = truncate(err.Error(), 120)

@@ -207,12 +207,12 @@ jobs:
 
 func TestParse_DefaultsBlock(t *testing.T) {
 	prev := KnownStrategies
-	KnownStrategies = func() []string { return []string{"lexical", "claude-api"} }
+	KnownStrategies = func() []string { return []string{"keyword", "claude-api"} }
 	defer func() { KnownStrategies = prev }()
 
 	yaml := validSpecHeader + `defaults:
   pool_depth: 50
-  judgments: lexical
+  judgments: keyword
 engines:
   pg:
     type: postgres
@@ -225,12 +225,12 @@ jobs:
 	s, err := Parse([]byte(yaml))
 	require.NoError(t, err)
 	assert.Equal(t, 50, s.Defaults.PoolDepth)
-	assert.Equal(t, "lexical", s.Defaults.Judgments)
+	assert.Equal(t, "keyword", s.Defaults.Judgments)
 }
 
 func TestParse_RejectsUnknownDefaultsJudgments(t *testing.T) {
 	prev := KnownStrategies
-	KnownStrategies = func() []string { return []string{"lexical", "claude-api"} }
+	KnownStrategies = func() []string { return []string{"keyword", "claude-api"} }
 	defer func() { KnownStrategies = prev }()
 
 	yaml := validSpecHeader + `defaults:
@@ -251,7 +251,7 @@ jobs:
 
 func TestParse_PathLikeDefaultsJudgmentsAllowed(t *testing.T) {
 	prev := KnownStrategies
-	KnownStrategies = func() []string { return []string{"lexical"} }
+	KnownStrategies = func() []string { return []string{"keyword"} }
 	defer func() { KnownStrategies = prev }()
 
 	yaml := validSpecHeader + `defaults:

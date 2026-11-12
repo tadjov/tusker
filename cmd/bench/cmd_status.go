@@ -57,7 +57,7 @@ func statusTrack(w io.Writer, tr *trackctx.Track) error {
 	if len(annotations) == 0 {
 		fmt.Fprintf(w, "  Judgments    %s  %s\n",
 			cFail.Sprint("✗"),
-			cDim.Sprintf("none found — run: bench judge %s --strategy lexical", tr.Name()))
+			cDim.Sprintf("none found — run: bench judge %s --strategy keyword", tr.Name()))
 	} else {
 		for i, path := range annotations {
 			prefix := "  Judgments   "

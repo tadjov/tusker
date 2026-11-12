@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tadjov/tusker/internal/bench/dialect"
 	"github.com/tadjov/tusker/internal/bench/engine"
 	"github.com/tadjov/tusker/internal/bench/spec"
 	"github.com/tadjov/tusker/internal/bench/suite"
+	"github.com/tadjov/tusker/internal/storage"
 	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
@@ -224,4 +226,79 @@ func TestValidate_TrackWithQueryVectorsNeedsNoOllama(t *testing.T) {
 
 	require.NoError(t, err, out)
 	assert.Zero(t, ollamaCalls.Load())
+}
+
+// textVectors holds a vector for each query text it embedded, as a
+// query-vectors package does.
+type textVectors map[string][]float32
+
+func (s textVectors) QueryVector(_ context.Context, text string) ([]float32, error) {
+	vector, ok := s[text]
+	if !ok {
+		return nil, fmt.Errorf("no vector for %q", text)
+	}
+	return vector, nil
+}
+func (s textVectors) DocVectors(context.Context, []uuid.UUID) (map[uuid.UUID][]float32, error) {
+	return nil, nil
+}
+func (s textVectors) Model() string { return "qwen3-embedding:0.6b" }
+
+func validateVectorQuery(t *testing.T, query string, store storage.VectorStore) (validateRow, *recordingValidator) {
+	t.Helper()
+	loaded, err := suite.Parse([]byte(`schema_version: 1
+id: validate_vector
+templates:
+  - id: knn
+    args: [query_vector]
+    query: "SELECT article_id FROM article_embeddings ORDER BY embedding <=> $1::vector LIMIT 10"
+queries:
+` + query))
+	require.NoError(t, err)
+	validator := &recordingValidator{}
+	row := validateOne(context.Background(), validateInput{
+		query:        loaded.Suite.Queries[0],
+		engineName:   "pg",
+		binding:      spec.QueryBinding{QuerySource: "pg"},
+		loaded:       loaded,
+		executor:     validator,
+		store:        store,
+		dialect:      dialect.Positional{},
+		queryTimeout: time.Minute,
+	})
+	return row, validator
+}
+
+func TestValidateOne_LooksTheQueryVectorUpByTheQueryText(t *testing.T) {
+	row, validator := validateVectorQuery(t, `  - id: q1
+    text: "economic downturn"
+    description: "Articles about economic downturns"
+    engines:
+      pg: { template: knn }
+`, textVectors{"economic downturn": {0.25, -0.5}, "Articles about economic downturns": {9, 9}})
+
+	require.Equal(t, "OK", row.status, row.detail)
+	assert.Equal(t, []any{"[0.25,-0.5]"}, validator.args)
+}
+
+func TestValidateOne_VectorQueryWithoutTextFails(t *testing.T) {
+	row, validator := validateVectorQuery(t, `  - id: q1
+    description: "Articles about economic downturns"
+    engines:
+      pg: { template: knn }
+`, textVectors{"": {0.25, -0.5}, "Articles about economic downturns": {9, 9}})
+
+	assert.NotEqual(t, "OK", row.status)
+	assert.Contains(t, row.detail, "text")
+	assert.Empty(t, validator.query, "a query without text was validated")
+}
+
+func TestValidate_BooleanTextThatDoesNotParseFailsNamingTheQuery(t *testing.T) {
+	tr := newLineageTrack(t, fakeCluster(t, map[string]*fakeIndex{"a": {count: 10}, "b": {count: 10}}))
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: first query\n", "    text: \"first AND (query\"\n    category: boolean\n")
+
+	_, err := execute(t, newValidateCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"q1"`)
 }

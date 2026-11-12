@@ -50,7 +50,7 @@ templates:
     query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery($1) ORDER BY $2::vector IS NULL"
 queries:
   - id: hybrid-1
-    description: "climate policy"
+    text: "climate policy"
     engines:
       elasticsearch: { template: es_hybrid, params: { terms: "don't", size: 50 } }
       pg-rrf: { template: pg_rrf, params: { terms: "don't" } }

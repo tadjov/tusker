@@ -1,23 +1,27 @@
 package judgment
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/tadjov/tusker/internal/bench/meta"
 	"github.com/tadjov/tusker/internal/storage"
 )
 
-// VectorStrategy grades candidates by cosine similarity between the query
-// embedding and each document's stored embedding. Unlike lexical/bm25 it
-// captures semantic relevance — paraphrases and related concepts with no shared
-// keywords — which is what the semantic and hybrid tracks need.
+// VectorStrategy grades a query's pool as exact search's top ten: the pool docs
+// nearest the query by cosine between the query's vector and each doc's stored
+// one. Every vector engine searches the same model's vectors, so against these
+// grades R@10 is recall@10 against exact search, provided the pool holds exact
+// search's own top ten.
 //
 // It is storage-agnostic: document vectors come from a storage.VectorStore
-// (Postgres today, ES later) and only the query is embedded at runtime. It does
-// not re-embed documents.
+// (Postgres today, ES later) and the query vector is looked up by its text. It
+// does not re-embed documents.
 type VectorStrategy struct {
 	store storage.VectorStore
 	model string
@@ -45,14 +49,16 @@ func (s VectorStrategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyVector), Model: s.model, RubricVersion: vectorRubricVersion}
 }
 
-const vectorRubricVersion = "v1"
+const vectorRubricVersion = "v2"
 
-// vectorFetchBatchSize fetches a typical query pool's vectors in one store round-trip.
-const vectorFetchBatchSize = 512
+// vectorRelevantDepth is the depth of exact search the semantic track measures
+// recall at.
+const vectorRelevantDepth = 10
 
-func (VectorStrategy) PreferredBatchSize() int { return vectorFetchBatchSize }
-
-func (s VectorStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
+// GradePool grades the vectorRelevantDepth docs nearest the query 3, ties
+// broken by the lower id, and every other doc 0. A doc without a stored vector
+// is left out, so the runner records it unjudged.
+func (s VectorStrategy) GradePool(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
 	if len(docs) == 0 {
 		return nil, nil
 	}
@@ -60,37 +66,37 @@ func (s VectorStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []G
 	if err != nil {
 		return nil, err
 	}
-	// Return grades only for docs that have a stored embedding. Docs without one
-	// are simply omitted; the runner records them as Unjudged, leaving them for
-	// another strategy rather than scoring them 0.
-	out := make([]GradedDoc, 0, len(docs))
+	type nearness struct {
+		id     uuid.UUID
+		cosine float64
+	}
+	ranked := make([]nearness, 0, len(docs))
 	for _, d := range docs {
 		if dv, ok := vecs[d.ID]; ok {
-			out = append(out, GradedDoc{DocID: d.ID, Grade: gradeFromCosine(cosine(qVec, dv))})
+			ranked = append(ranked, nearness{id: d.ID, cosine: cosine(qVec, dv)})
 		}
+	}
+	slices.SortFunc(ranked, func(a, b nearness) int {
+		return cmp.Or(cmp.Compare(b.cosine, a.cosine), bytes.Compare(a.id[:], b.id[:]))
+	})
+	out := make([]GradedDoc, len(ranked))
+	for i, r := range ranked {
+		grade := GradeNotRelev
+		if i < vectorRelevantDepth {
+			grade = GradeHighly
+		}
+		out[i] = GradedDoc{DocID: r.id, Grade: grade}
 	}
 	return out, nil
 }
 
-func (s VectorStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	qVec, vecs, err := s.vectors(ctx, q, []GradingDoc{doc})
-	if err != nil {
-		return GradeUnjudged, err
-	}
-	dv, ok := vecs[doc.ID]
-	if !ok {
-		return GradeUnjudged, fmt.Errorf("vector strategy: no stored embedding for doc %s", doc.ID)
-	}
-	return gradeFromCosine(cosine(qVec, dv)), nil
-}
-
-// vectors embeds the query once and fetches all candidate doc vectors from the
-// store in one round-trip.
+// vectors looks the query's vector up once and fetches all candidate doc
+// vectors from the store in one round-trip.
 func (s VectorStrategy) vectors(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]float32, map[uuid.UUID][]float32, error) {
 	if s.store == nil {
 		return nil, nil, fmt.Errorf("vector strategy: no vector store configured")
 	}
-	qVec, err := s.store.QueryVector(ctx, q.Description)
+	qVec, err := s.store.QueryVector(ctx, q.Text)
 	if err != nil {
 		return nil, nil, fmt.Errorf("embed query %q: %w", q.ID, err)
 	}
@@ -167,20 +173,4 @@ func cosine(a, b []float32) float64 {
 		return 0
 	}
 	return dot / (math.Sqrt(na) * math.Sqrt(nb))
-}
-
-// gradeFromCosine maps cosine similarity to a grade. Thresholds suit
-// sentence-embedding models (e.g. qwen3-embedding) and may need tuning per
-// model — they are intentionally conservative.
-func gradeFromCosine(c float64) int {
-	switch {
-	case c >= 0.70:
-		return GradeHighly
-	case c >= 0.55:
-		return GradeRelevant
-	case c >= 0.40:
-		return GradeMarginally
-	default:
-		return GradeNotRelev
-	}
 }

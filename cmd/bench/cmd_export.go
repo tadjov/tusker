@@ -37,7 +37,7 @@ func newExportCmd() *cobra.Command {
                      engine, written to --output or reports/<run_id>.run/
 
 qrels/tsv picks the judgments file in this order: --judgments PATH > --strategy NAME >
-defaults to lexical. Without --output the qrels go to qrels.<name>.tsv beside the
+defaults to keyword. Without --output the qrels go to qrels.<name>.tsv beside the
 judgments file. html, markdown and run read the track's latest report.`,
 		Example: `  bench export tracks/global-news-dataset/fts_quality --format qrels
   bench export tracks/global-news-dataset/fts_quality --format qrels --strategy claude-api
@@ -53,7 +53,7 @@ judgments file. html, markdown and run read the track's latest report.`,
 	}
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.format, "format", "qrels", "Export format: qrels (TREC TSV), html, markdown, or run (TREC run files)")
-	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyLexical), "Judgment strategy for TSV export")
+	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyKeyword), "Judgment strategy for TSV export")
 	cmd.Flags().StringVar(&f.judgmentsPath, "judgments", "", "Override annotations YAML path (TSV only)")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override output path")
 	return cmd

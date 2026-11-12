@@ -16,10 +16,12 @@ id: cc-news-semantic
 version: "1.0.0"
 queries:
   - id: q-climate
-    description: "  climate change "
+    text: "  climate change "
+    description: Coverage of climate change
     engines: {}
   - id: q-rates
-    description: central bank interest rates
+    text: central bank interest rates
+    description: Central banks setting interest rates
     engines: {}
 """
 
@@ -50,6 +52,18 @@ def test_writes_each_query_with_the_text_the_runner_embeds(tmp_path, tiny_model_
     assert rows["text"] == ["  climate change ", "central bank interest rates"]
     norms = np.linalg.norm(np.array(rows["embedding"], dtype=np.float32), axis=1)
     np.testing.assert_allclose(norms, 1.0, atol=1e-6)
+
+
+def test_refuses_a_query_with_only_a_description(tmp_path, tiny_model_args):
+    suite = write_suite(
+        tmp_path / "track", SUITE.replace('    text: "  climate change "\n', "")
+    )
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "q-climate" in result.stderr
+    assert not query_vectors(tmp_path / "track").exists()
 
 
 def test_descriptor_records_the_tag_query_recipe_and_suite_id(
@@ -123,7 +137,7 @@ def test_re_embedding_an_edited_suite_replaces_its_query_vectors(
     assert rows["text"] == ["  climate change ", "central bank rate decision"]
 
 
-def test_a_description_yaml_could_read_as_a_number_keeps_its_literal_text(
+def test_a_text_yaml_could_read_as_a_number_keeps_its_literal_text(
     tmp_path, tiny_model_args
 ):
     suite = write_suite(
@@ -154,7 +168,7 @@ def test_query_vectors_carry_no_version(tmp_path, tiny_model_args):
     assert "version" not in json.loads(query_vectors(tmp_path / "track").read_text())
 
 
-def test_refuses_a_query_with_an_empty_description(tmp_path, tiny_model_args):
+def test_refuses_a_query_with_an_empty_text(tmp_path, tiny_model_args):
     suite = write_suite(
         tmp_path / "track", SUITE.replace('"  climate change "', '"  "')
     )

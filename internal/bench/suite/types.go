@@ -7,8 +7,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/ingest/reader"
 	"gopkg.in/yaml.v3"
 )
 
@@ -43,12 +45,46 @@ type Corpus struct {
 }
 
 type Query struct {
-	ID          string `yaml:"id"`
-	Description string `yaml:"description"`
-	// Category drives per-category aggregation and the judge's grading rule.
-	Category  string                 `yaml:"category,omitempty"`
-	Engines   map[string]EngineQuery `yaml:"engines"`
-	Judgments []RelevanceJudgment    `yaml:"judgments"`
+	ID string `yaml:"id"`
+	// Text is the query as a user would type it: what the deterministic judges
+	// grade and what a vector engine's query embedding is looked up by.
+	// Description is metadata for the reader.
+	Text        string                 `yaml:"text,omitempty"`
+	Description string                 `yaml:"description"`
+	Category    Category               `yaml:"category,omitempty"`
+	Filters     Filters                `yaml:"filters,omitempty"`
+	Engines     map[string]EngineQuery `yaml:"engines"`
+	Judgments   []RelevanceJudgment    `yaml:"judgments"`
+}
+
+// Filters declare, engine-neutrally, the structured filters every engine's
+// statement for the query applies. A zero field filters nothing.
+type Filters struct {
+	PublisherDomain string `yaml:"publisher_domain,omitempty"`
+	// PublishedAfter admits articles published at or after it.
+	PublishedAfter time.Time `yaml:"published_after,omitempty"`
+	// PublishedBefore admits articles published strictly earlier.
+	PublishedBefore time.Time `yaml:"published_before,omitempty"`
+}
+
+// Equal compares the bounds as instants, whatever zone each was written in.
+func (f Filters) Equal(other Filters) bool {
+	return f.PublisherDomain == other.PublisherDomain &&
+		f.PublishedAfter.Equal(other.PublishedAfter) &&
+		f.PublishedBefore.Equal(other.PublishedBefore)
+}
+
+// check refuses a publisher domain no article carries: an article's is its
+// url's lowercase eTLD+1.
+func (f Filters) check() error {
+	if f.PublisherDomain == "" {
+		return nil
+	}
+	if derived := reader.PublisherDomain("https://" + f.PublisherDomain); derived != f.PublisherDomain {
+		return fmt.Errorf("filters.publisher_domain %q is not a publisher domain, which is a url's lowercase eTLD+1 (%q for this one)",
+			f.PublisherDomain, derived)
+	}
+	return nil
 }
 
 type EngineQuery struct {

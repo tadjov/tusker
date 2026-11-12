@@ -27,7 +27,7 @@ func TestHybridGradePool_FusesSignals(t *testing.T) {
 	}
 	s := NewHybridStrategyWithStore(store, "fake")
 
-	got, err := s.GradePool(context.Background(), GradingQuery{ID: "q", Description: "climate change policy"}, []GradingDoc{lexicalHit, semanticHit, cold})
+	got, err := s.GradePool(context.Background(), GradingQuery{ID: "q", Text: "climate change policy"}, []GradingDoc{lexicalHit, semanticHit, cold})
 	if err != nil {
 		t.Fatalf("GradePool: %v", err)
 	}
@@ -94,10 +94,31 @@ func TestHybridGradePool_QueryWithoutTermsFails(t *testing.T) {
 	doc := GradingDoc{ID: uuid.New(), Title: "anything"}
 	store := fakeVectorStore{query: []float32{1, 0}, docs: map[uuid.UUID][]float32{doc.ID: {1, 0}}}
 
-	_, err := NewHybridStrategyWithStore(store, "fake").GradePool(context.Background(), GradingQuery{ID: "q1", Description: "the a of"}, []GradingDoc{doc})
+	_, err := NewHybridStrategyWithStore(store, "fake").GradePool(context.Background(), GradingQuery{ID: "q1", Text: "the a of"}, []GradingDoc{doc})
 
 	var noTerms *NoQueryTermsError
 	if !errors.As(err, &noTerms) || noTerms.QueryID != "q1" {
 		t.Fatalf("GradePool error = %v, want a NoQueryTermsError for q1", err)
+	}
+}
+
+func TestGradeFromHybridScore(t *testing.T) {
+	cases := []struct {
+		norm float64
+		want int
+	}{
+		{1.0, GradeHighly},
+		{0.66, GradeHighly},
+		{0.5, GradeRelevant},
+		{0.40, GradeRelevant},
+		{0.2, GradeMarginally},
+		{0.15, GradeMarginally},
+		{0.1, GradeNotRelev},
+		{0.0, GradeNotRelev},
+	}
+	for _, c := range cases {
+		if got := gradeFromHybridScore(c.norm); got != c.want {
+			t.Errorf("gradeFromHybridScore(%v) = %d, want %d", c.norm, got, c.want)
+		}
 	}
 }

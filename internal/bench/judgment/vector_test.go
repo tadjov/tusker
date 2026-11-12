@@ -2,9 +2,16 @@ package judgment
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/metrics"
 )
 
 // fakeVectorStore returns canned vectors so the scoring logic can be tested
@@ -33,57 +40,98 @@ func (f fakeVectorStore) DocVectors(_ context.Context, ids []uuid.UUID) (map[uui
 	return out, nil
 }
 
-func TestVectorGradeBatch(t *testing.T) {
-	identical := GradingDoc{ID: uuid.New(), Title: "a"}  // cos 1.0  -> Highly
-	related := GradingDoc{ID: uuid.New(), Title: "b"}    // cos 0.6  -> Relevant
-	orthogonal := GradingDoc{ID: uuid.New(), Title: "c"} // cos 0.0  -> NotRelev
-
-	store := fakeVectorStore{
-		query: []float32{1, 0},
-		docs: map[uuid.UUID][]float32{
-			identical.ID:  {1, 0},
-			related.ID:    {0.6, 0.8},
-			orthogonal.ID: {0, 1},
-		},
+// angledDocs gives doc i the unit vector at i·5° from the query vector (1, 0),
+// so its cosine falls as i grows. Ids are fixed so a tie breaks the same way
+// on every run.
+func angledDocs(n int) ([]GradingDoc, fakeVectorStore) {
+	store := fakeVectorStore{query: []float32{1, 0}, docs: map[uuid.UUID][]float32{}}
+	docs := make([]GradingDoc, n)
+	for i := range n {
+		id := uuid.MustParse(fmt.Sprintf("00000000-0000-4000-8000-%012d", i))
+		angle := float64(i) * 5 * math.Pi / 180
+		store.docs[id] = []float32{float32(math.Cos(angle)), float32(math.Sin(angle))}
+		docs[i] = GradingDoc{ID: id}
 	}
-	s := NewVectorStrategyWithStore(store, "fake-model")
+	return docs, store
+}
 
-	got, err := s.GradeBatch(context.Background(), GradingQuery{ID: "q"}, []GradingDoc{identical, related, orthogonal})
+func vectorGrades(t *testing.T, store fakeVectorStore, docs []GradingDoc) map[uuid.UUID]int {
+	t.Helper()
+	got, err := NewVectorStrategyWithStore(store, "fake-model").GradePool(context.Background(), GradingQuery{ID: "q", Text: "q"}, docs)
 	if err != nil {
-		t.Fatalf("GradeBatch: %v", err)
+		t.Fatalf("GradePool: %v", err)
 	}
 	byID := map[uuid.UUID]int{}
 	for _, g := range got {
 		byID[g.DocID] = g.Grade
 	}
-	if byID[identical.ID] != GradeHighly {
-		t.Errorf("identical grade = %d, want %d", byID[identical.ID], GradeHighly)
-	}
-	if byID[related.ID] != GradeRelevant {
-		t.Errorf("related grade = %d, want %d", byID[related.ID], GradeRelevant)
-	}
-	if byID[orthogonal.ID] != GradeNotRelev {
-		t.Errorf("orthogonal grade = %d, want %d", byID[orthogonal.ID], GradeNotRelev)
-	}
+	return byID
 }
 
-func TestVectorGradeBatch_OmitsDocsWithoutVectors(t *testing.T) {
-	have := GradingDoc{ID: uuid.New(), Title: "a"}
-	missing := GradingDoc{ID: uuid.New(), Title: "b"}
-	store := fakeVectorStore{
-		query: []float32{1, 0},
-		docs:  map[uuid.UUID][]float32{have.ID: {1, 0}}, // missing has no vector
-	}
-	s := NewVectorStrategyWithStore(store, "fake")
+// The semantic track measures recall against exact search: the pool's ten
+// docs nearest the query are relevant, every other pooled doc is not.
+func TestVectorGradePool_GradesTheTenNearestDocsRelevantAndTheRestNot(t *testing.T) {
+	docs, store := angledDocs(15)
+	shuffled := slices.Clone(docs)
+	rand.New(rand.NewPCG(1, 2)).Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
 
-	got, err := s.GradeBatch(context.Background(), GradingQuery{ID: "q"}, []GradingDoc{have, missing})
-	if err != nil {
-		t.Fatalf("GradeBatch: %v", err)
+	got := vectorGrades(t, store, shuffled)
+
+	require.Len(t, got, 15)
+	for i, d := range docs {
+		want := GradeNotRelev
+		if i < 10 {
+			want = GradeHighly
+		}
+		assert.Equal(t, want, got[d.ID], "doc %d at %d°", i, i*5)
 	}
-	// missing doc is omitted so the runner records it as Unjudged.
-	if len(got) != 1 || got[0].DocID != have.ID {
-		t.Fatalf("expected only the doc with a vector, got %+v", got)
+
+	nearest := make([]uuid.UUID, 10)
+	for i := range nearest {
+		nearest[i] = docs[9-i].ID
 	}
+	assert.Equal(t, 1.0, metrics.RecallAtK(nearest, got, 10, 1), "the exact top ten in reverse order")
+	nineAndAFar := append(slices.Clone(nearest[:9]), docs[14].ID)
+	assert.InDelta(t, 0.9, metrics.RecallAtK(nineAndAFar, got, 10, 1), 1e-12)
+}
+
+func TestVectorGradePool_BreaksATieAtTheTenthDocByID(t *testing.T) {
+	docs, store := angledDocs(11)
+	store.docs[docs[10].ID] = store.docs[docs[9].ID]
+
+	got := vectorGrades(t, store, docs)
+
+	assert.Equal(t, GradeHighly, got[docs[9].ID], "the lower id of the tied pair")
+	assert.Equal(t, GradeNotRelev, got[docs[10].ID])
+}
+
+func TestVectorGradePool_LeavesDocsWithoutAVectorUnjudged(t *testing.T) {
+	docs, store := angledDocs(3)
+	delete(store.docs, docs[1].ID)
+
+	got := vectorGrades(t, store, docs)
+
+	assert.NotContains(t, got, docs[1].ID)
+	assert.Equal(t, GradeHighly, got[docs[0].ID])
+	assert.Equal(t, GradeHighly, got[docs[2].ID])
+}
+
+// A batch sees only part of the pool, so its ten nearest are not the pool's.
+func TestVector_RejectsBatchSize(t *testing.T) {
+	pf, articles := buildPool(t, 15)
+	ids := make(map[uuid.UUID]struct{}, len(articles))
+	for id := range articles {
+		ids[id] = struct{}{}
+	}
+	store := widthMismatchStore(t, ids, 2, 2)
+
+	_, err := NewRunner(RunnerConfig{
+		Strategy:  NewVectorStrategyWithStore(store, "fake-model"),
+		Reader:    &stubStorageReader{articles: articles},
+		BatchSize: 5,
+	}).Run(context.Background(), pf)
+
+	assert.ErrorContains(t, err, "vector grades each query's whole pool at once and takes no batch size")
 }
 
 func TestVectorDescribe(t *testing.T) {

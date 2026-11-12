@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/tadjov/tusker/internal/bench/suite"
 )
 
 const (
@@ -53,11 +54,11 @@ func BuildGradingPrompt(q GradingQuery, doc GradingDoc) string {
 	return sb.String()
 }
 
-func constraintFor(category string) string {
+func constraintFor(category suite.Category) string {
 	switch category {
-	case "phrase":
+	case suite.CategoryPhrase:
 		return phraseConstraint
-	case "boolean":
+	case suite.CategoryBoolean:
 		return booleanConstraint
 	default:
 		return ""

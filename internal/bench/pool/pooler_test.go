@@ -94,7 +94,8 @@ func TestPoolFileWriteRead(t *testing.T) {
 		Queries: []PoolEntry{
 			{
 				QueryID:   "q1",
-				QueryDesc: "test query",
+				QueryText: "test query",
+				QueryDesc: "A test query",
 				Docs: []PooledDoc{
 					{DocID: id1, Sources: []string{"pg", "es"}},
 				},
@@ -116,6 +117,8 @@ func TestPoolFileWriteRead(t *testing.T) {
 	assert.Equal(t, "test-suite", loaded.SuiteName)
 	assert.Len(t, loaded.Queries, 1)
 	assert.Equal(t, "q1", loaded.Queries[0].QueryID)
+	assert.Equal(t, "test query", loaded.Queries[0].QueryText)
+	assert.Equal(t, "A test query", loaded.Queries[0].QueryDesc)
 	assert.Len(t, loaded.Queries[0].Docs, 1)
 	assert.Equal(t, id1, loaded.Queries[0].Docs[0].DocID)
 	assert.Equal(t, []string{"pg", "es"}, loaded.Queries[0].Docs[0].Sources)

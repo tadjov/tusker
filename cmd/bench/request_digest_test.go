@@ -20,10 +20,12 @@ templates:
     query: '{"query": {"match": {"title": {"query": "{{terms}}", "boost": {{boost}}}}}}'
 queries:
   - id: q1
+    text: first query
     engines:
       a: { template: boosted, params: { terms: q1 } }
       b: { template: boosted, params: { terms: q1, boost: 1 } }
   - id: q2
+    text: second query
     engines:
       a: { template: boosted, params: { terms: q2 } }
       b: { template: boosted, params: { terms: q2, boost: 1 } }

@@ -11,12 +11,14 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/tadjov/tusker/internal/bench/judgment"
 	"github.com/tadjov/tusker/internal/bench/metrics"
 	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/bench/suite"
 	"github.com/tadjov/tusker/internal/bench/trackctx"
 	"github.com/tadjov/tusker/internal/storage"
 	"github.com/tadjov/tusker/internal/types/document"
@@ -428,10 +430,12 @@ func (s *gradingSession) show(ctx context.Context, position int) error {
 	w := s.out
 	header := fmt.Sprintf("── %d/%d ── %s", position+1, len(s.walk), pair.query.QueryID)
 	if pair.query.Category != "" {
-		header += " · " + pair.query.Category
+		header += " · " + string(pair.query.Category)
 	}
 	fmt.Fprintf(w, "\n%s\n", cCyan.Sprint(header))
-	printField(w, "query", pair.query.QueryDesc)
+	printField(w, "query", pair.query.QueryText)
+	printField(w, "query description", pair.query.QueryDesc)
+	printField(w, "filters", formatFilters(pair.query.Filters))
 	if len(articles) == 0 {
 		printWarn(w, fmt.Sprintf("article %s is not in the store", pair.docID))
 		return nil
@@ -440,7 +444,7 @@ func (s *gradingSession) show(ctx context.Context, position int) error {
 	printField(w, "title", a.Title)
 	printField(w, "publisher", publisher(a))
 	if !a.PublishedAt.IsZero() {
-		printField(w, "published", a.PublishedAt.Format("2006-01-02"))
+		printField(w, "published", a.PublishedAt.UTC().Format(time.DateOnly))
 	}
 	printField(w, "description", a.Description)
 	printField(w, "content", contentPreview(a.Content))
@@ -451,14 +455,42 @@ func printField(w io.Writer, label, value string) {
 	if value == "" {
 		return
 	}
-	fmt.Fprintf(w, "%s %s\n", cDim.Sprintf("%-12s", label+":"), value)
+	fmt.Fprintf(w, "%s %s\n", cDim.Sprintf("%-18s", label+":"), value)
 }
 
+// publisher shows the domain beside the name, since a publisher_domain filter
+// compares the domain.
 func publisher(a document.Article) string {
-	if a.Metadata.PublisherName != "" {
+	switch {
+	case a.Metadata.PublisherName == "":
+		return a.PublisherDomain
+	case a.PublisherDomain == "":
 		return a.Metadata.PublisherName
+	default:
+		return fmt.Sprintf("%s (%s)", a.Metadata.PublisherName, a.PublisherDomain)
 	}
-	return a.PublisherDomain
+}
+
+func formatFilters(f suite.Filters) string {
+	var parts []string
+	if f.PublisherDomain != "" {
+		parts = append(parts, "publisher_domain="+f.PublisherDomain)
+	}
+	if !f.PublishedAfter.IsZero() {
+		parts = append(parts, "published_after="+formatFilterTime(f.PublishedAfter))
+	}
+	if !f.PublishedBefore.IsZero() {
+		parts = append(parts, "published_before="+formatFilterTime(f.PublishedBefore))
+	}
+	return strings.Join(parts, " ")
+}
+
+func formatFilterTime(t time.Time) string {
+	t = t.UTC()
+	if t.Equal(t.Truncate(24 * time.Hour)) {
+		return t.Format(time.DateOnly)
+	}
+	return t.Format(time.RFC3339)
 }
 
 func contentPreview(content string) string {

@@ -53,7 +53,7 @@ func (k Kind) RequiresEmbedder() bool {
 }
 
 // Defaults supply fallback values that the CLI flags can override. Lets users
-// set "this track defaults to lexical judgments and pool depth 100" in one
+// set "this track defaults to keyword judgments and pool depth 100" in one
 // place instead of repeating flags.
 type Defaults struct {
 	PoolDepth int    `yaml:"pool_depth,omitempty"`

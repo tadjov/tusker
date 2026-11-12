@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 
 	"github.com/tadjov/tusker/internal/bench/version"
@@ -64,6 +65,17 @@ func Parse(data []byte) (*LoadedSuite, error) {
 		if len(q.Engines) == 0 {
 			return nil, fmt.Errorf("query %q has no engines", q.ID)
 		}
+		if q.Category != "" {
+			if _, err := ParseCategory(string(q.Category)); err != nil {
+				return nil, fmt.Errorf("query %q: %w", q.ID, err)
+			}
+		}
+		if err := checkGatedText(q); err != nil {
+			return nil, fmt.Errorf("query %q: %w", q.ID, err)
+		}
+		if err := q.Filters.check(); err != nil {
+			return nil, fmt.Errorf("query %q: %w", q.ID, err)
+		}
 		for engName, eq := range q.Engines {
 			if eq.Template != "" {
 				if _, ok := registry.Get(eq.Template); !ok {
@@ -77,6 +89,36 @@ func Parse(data []byte) (*LoadedSuite, error) {
 	}
 
 	return &LoadedSuite{Suite: &s, Registry: registry}, nil
+}
+
+var (
+	// dottedForm is a word joined to the next by a dot: U.S., No.10, news.com.
+	dottedForm = regexp.MustCompile(`[\p{L}\p{N}]*\p{L}(?:\.[\p{L}\p{N}]+)+\.?`)
+	// initialism is a dotted form of single letters: U.S., e.g.
+	initialism = regexp.MustCompile(`^(?:\p{L}\.)+\p{L}?$`)
+)
+
+// checkGatedText refuses the text of a phrase or boolean query that its gate
+// would read otherwise than the engines: a boolean text that does not parse,
+// or a dotted form, which Postgres and Elasticsearch keep as one token and the
+// judges split at each dot.
+func checkGatedText(q Query) error {
+	if q.Category != CategoryPhrase && q.Category != CategoryBoolean {
+		return nil
+	}
+	if dotted := dottedForm.FindString(q.Text); dotted != "" {
+		advice := "write it as separate words or drop it"
+		if initialism.MatchString(dotted) {
+			advice = "write it without dots"
+		}
+		return fmt.Errorf("text %q holds the dotted form %q, which the engines read as one token and the judges as several: %s", q.Text, dotted, advice)
+	}
+	if q.Category == CategoryBoolean && q.Text != "" {
+		if _, err := ParseBoolean(q.Text); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func checkEngineQuery(eq *EngineQuery, registry *TemplateRegistry) error {

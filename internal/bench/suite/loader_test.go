@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/apperr"
 )
 
 const validHeader = `schema_version: 1
@@ -250,6 +252,224 @@ queries:
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Parse([]byte(validHeader + tc.body))
 			assert.ErrorContains(t, err, tc.key)
+		})
+	}
+}
+
+func TestParse_QueryText(t *testing.T) {
+	tests := []struct {
+		name, body, want string
+	}{
+		{
+			name: "read as written",
+			body: `queries:
+  - id: q1
+    text: climate AND NOT politics
+    description: Climate coverage that leaves politics out
+    engines:
+      pg: "SELECT 1"
+`,
+			want: "climate AND NOT politics",
+		},
+		{
+			name: "optional, so a legacy suite still loads",
+			body: `queries:
+  - id: q1
+    description: Climate coverage
+    engines:
+      pg: "SELECT 1"
+`,
+			want: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			loaded, err := Parse([]byte(validHeader + tc.body))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, loaded.Suite.Queries[0].Text)
+		})
+	}
+}
+
+func TestParse_QueryFilters(t *testing.T) {
+	loaded, err := Parse([]byte(validHeader + `queries:
+  - id: q1
+    text: climate
+    filters:
+      publisher_domain: reuters.com
+      published_after: 2024-01-01
+      published_before: "2024-07-01T12:00:00Z"
+    engines:
+      pg: "SELECT 1"
+`))
+
+	require.NoError(t, err)
+	assert.Equal(t, Filters{
+		PublisherDomain: "reuters.com",
+		PublishedAfter:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		PublishedBefore: time.Date(2024, 7, 1, 12, 0, 0, 0, time.UTC),
+	}, loaded.Suite.Queries[0].Filters)
+}
+
+func TestParse_RejectsAMisspeltFilter(t *testing.T) {
+	_, err := Parse([]byte(validHeader + `queries:
+  - id: q1
+    text: climate
+    filters:
+      publisher_domian: reuters.com
+    engines:
+      pg: "SELECT 1"
+`))
+
+	assert.ErrorContains(t, err, "publisher_domian")
+}
+
+func TestParse_QueryCategory(t *testing.T) {
+	for _, category := range []string{"keyword", "phrase", "boolean", "multi-field", "single-field"} {
+		t.Run(category, func(t *testing.T) {
+			loaded, err := Parse([]byte(validHeader + `queries:
+  - id: q1
+    text: climate
+    category: ` + category + `
+    engines:
+      pg: "SELECT 1"
+`))
+			require.NoError(t, err)
+			assert.Equal(t, Category(category), loaded.Suite.Queries[0].Category)
+		})
+	}
+}
+
+// The judges gate on the category, so a misspelt one would silently grade a
+// boolean or phrase query as plain keywords.
+func TestParse_RejectsAnUnknownCategoryNamingTheQuery(t *testing.T) {
+	for _, category := range []string{"Boolean", "booleans", "Phrase", "facet"} {
+		t.Run(category, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-climate
+    text: climate
+    category: ` + category + `
+    engines:
+      pg: "SELECT 1"
+`))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-climate"`)
+			assert.Contains(t, err.Error(), category)
+		})
+	}
+}
+
+func TestParse_RejectsABooleanTextThatDoesNotParseNamingTheQuery(t *testing.T) {
+	for _, text := range []string{"climate AND (politics", "climate AND", "OR climate", "NOT"} {
+		t.Run(text, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-bool
+    text: "` + text + `"
+    category: boolean
+    engines:
+      pg: "SELECT 1"
+`))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-bool"`)
+		})
+	}
+}
+
+func TestParse_KeepsTheTokenizersValidationErrorInTheChain(t *testing.T) {
+	_, err := Parse([]byte(validHeader + `queries:
+  - id: q-bool
+    text: "climate AND (politics"
+    category: boolean
+    engines:
+      pg: "SELECT 1"
+`))
+
+	var validation *apperr.ValidationError
+	assert.ErrorAs(t, err, &validation)
+}
+
+func TestParse_ReadsAParenthesisedBooleanText(t *testing.T) {
+	_, err := Parse([]byte(validHeader + `queries:
+  - id: q-bool
+    text: '(election OR "general vote") AND NOT football'
+    category: boolean
+    engines:
+      pg: "SELECT 1"
+`))
+
+	assert.NoError(t, err)
+}
+
+// An article's publisher domain is its url's lowercase eTLD+1, so a filter
+// spelt any other way matches no article and zeroes every grade.
+func TestParse_PublisherDomainFilter(t *testing.T) {
+	tests := []struct {
+		domain  string
+		wantErr bool
+	}{
+		{domain: "reuters.com"},
+		{domain: "bbc.co.uk"},
+		{domain: "Reuters.com", wantErr: true},
+		{domain: "www.reuters.com", wantErr: true},
+		{domain: "uk.reuters.com", wantErr: true},
+		{domain: "https://reuters.com", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.domain, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-filtered
+    text: climate
+    filters: { publisher_domain: "` + tt.domain + `" }
+    engines:
+      pg: "SELECT 1"
+`))
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-filtered"`)
+		})
+	}
+}
+
+// Postgres and Elasticsearch keep U.S. as one token where the judges split it,
+// so a gated query must spell such a form out.
+func TestParse_RejectsADottedFormInAGatedQuerysText(t *testing.T) {
+	tests := []struct {
+		text, category string
+		wantAdvice     string
+	}{
+		{text: "A.I. regulation", category: "phrase", wantAdvice: "without dots"},
+		{text: "U.S. AND election", category: "boolean", wantAdvice: "without dots"},
+		{text: "climate e.g. floods", category: "phrase", wantAdvice: "without dots"},
+		{text: "No.10 Downing Street", category: "phrase", wantAdvice: "separate words"},
+		{text: "No.1 hit", category: "phrase", wantAdvice: "separate words"},
+		{text: "news.com AND climate", category: "boolean", wantAdvice: "separate words"},
+		{text: "AI regulation", category: "phrase"},
+		{text: "US AND election", category: "boolean"},
+		{text: "U.S. election", category: "keyword"},
+		{text: "climate. Policy", category: "phrase"},
+		{text: "Mr. Smith", category: "phrase"},
+		{text: "3.5 percent", category: "phrase"},
+		{text: "v2.0 release", category: "phrase"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.text, func(t *testing.T) {
+			_, err := Parse([]byte(validHeader + `queries:
+  - id: q-dotted
+    text: "` + tt.text + `"
+    category: ` + tt.category + `
+    engines:
+      pg: "SELECT 1"
+`))
+			if tt.wantAdvice == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q-dotted"`)
+			assert.Contains(t, err.Error(), tt.wantAdvice)
 		})
 	}
 }

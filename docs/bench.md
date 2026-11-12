@@ -38,8 +38,8 @@ for these kinds instead of stubbing a fake vector and reporting a misleading OK.
 
 ### Query categories
 
-A suite query may carry `category:` (free-form; the fts track uses keyword, phrase, boolean,
-multi-field, single-field). When a job's queries span more than one category, `bench run`
+A suite query may carry `category:`, one of `keyword`, `phrase`, `boolean`, `multi-field` or
+`single-field`; any other value fails the suite load, naming the query. When a job's queries span more than one category, `bench run`
 prints the aggregated table per category alongside the overall one.
 
 Result-list length is the reason. A strict phrase query legitimately matches two documents
@@ -47,9 +47,9 @@ where a keyword query matches thousands, and AP, recall and the NDCG ideal all n
 against the full judged relevant set, so an engine returning the correct two scores as
 though it missed forty. One mean over both measures list length as much as ranking quality.
 
-The tag also reaches the judge: `bench pool` copies it into `pool.yaml`, and the LLM prompt
-turns `phrase` and `boolean` into an explicit rule, so an on-topic article that fails the
-constraint grades 0.
+The tag also reaches the judge: `bench pool` copies it into `pool.yaml`, and `keyword`,
+`bm25` and the LLM prompt turn `phrase` and `boolean` into an explicit rule, so an on-topic
+article that fails the constraint grades 0.
 
 ### Engine connection settings
 
@@ -246,7 +246,7 @@ query embedder running; this is how the bench gets query vectors from the same r
 documents. `scripts/embed_queries.py` writes the package. The bench refuses it when:
 
 - its resource no longer matches the descriptor's hash
-- a query in the `suite.yaml` the jobs run has no row, or its row's `text` differs from the query's `description`; the error names the query id. Edits that leave every description as it was don't need re-embedding
+- a query in the `suite.yaml` the jobs run has no row, or its row's `text` differs from the query's `text`; the error names the query id. Edits that leave every `text` as it was, descriptions included, don't need re-embedding
 - its `embedding.tag` differs from the engines' `embedding_model`, or no engine declares one
 
 A query whose text the package doesn't hold fails with the text in the error. Without a
@@ -286,13 +286,126 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 
 | Strategy     | Class     | Status   | Description                                              |
 |--------------|-----------|----------|----------------------------------------------------------|
-| `lexical`    | Heuristic | ✅        | Token-overlap baseline — fast, deterministic, no network |
-| `bm25`       | Heuristic | ✅        | Pool-local Okapi BM25, normalised → grade (no network)   |
-| `vector`     | Heuristic | ✅        | Cosine similarity; doc vectors from the store → grade    |
+| `keyword`    | Heuristic | ✅        | Token-overlap baseline — fast, deterministic, no network |
+| `bm25`       | Heuristic | ✅        | Pool-local Okapi BM25 over its score bound → grade       |
+| `vector`     | Heuristic | ✅        | The pool's 10 docs nearest the query grade 3, the rest 0 |
 | `hybrid`     | Heuristic | ✅        | Weighted BM25 + vector fusion → grade                    |
 | `claude-cli` | LLM       | ✅        | `claude -p` subprocess per batch                         |
 | `claude-api` | LLM       | ✅        | Anthropic Messages API per batch                         |
 | `manual`     | Human     | ✅        | Emits `grade: -1` placeholders for hand-grading          |
+
+Every suite query carries `text`, the query as a user would type it (`climate change`,
+`climate AND NOT politics`, or the phrase itself). `keyword` and `bm25` tokenize it, and
+`vector` and `hybrid` look its vector up by it, the same string the engines' query vector
+comes from. `description` only explains the query to a reader. `bench pool` copies `text`
+into each pool entry beside the description and refuses a query without one, and so does
+`bench judge` for every strategy except `manual`. `bench grade` shows the text first, then the
+query's description and filters, with each article's publisher domain beside its name and
+each filter bound in UTC, the instant the judges compare.
+
+`keyword` and `bm25` read query and document through one analysis chain: lowercase runs of
+Unicode letters and digits of any length, so `US` and the `D` of `vitamin D` are terms, each
+stemmed with Snowball English (Porter2), so `elections` matches `election`. The judges stem
+with kljensen/snowball, which gives `added` → `ad` as Elasticsearch and ParadeDB do, where
+Postgres 18 gives `add`. Stopwords are Postgres 18's `english.stop`, kept verbatim in
+`internal/bench/judgment/english.stop`: Snowball's 127-word English list, which holds the 33
+words of Lucene's `_english_` that Elasticsearch and ParadeDB stop. A stopword is never a
+term of the query or of a document, so it neither scores nor counts toward a document's bm25
+length, and it blanks its position in the gate terms of both. The word is skipped, not its
+stem, so `Downing` never matches the stopword `down`. A phrase made only of stopwords
+(`will not`) has nothing to grade, as its `phraseto_tsquery` is empty.
+
+Both apply the query's category as a gate before scoring. A `phrase` query grades 0 unless
+one field holds its stemmed words at the phrase's positions. Gate terms are analysed as
+Postgres analyses a phrase: a stopword leaves the phrase at either end, and inside it keeps
+its position and matches any word, so `war of words` needs `war`, any one word, then
+`words`, as `'war' <2> 'word'` does. The gate reads one field at a time, as Elasticsearch's
+`match_phrase` and the native API's per-band `ts_filter` do. A Postgres phrase template must
+match each field on its own to agree with the judge: one matched against a concatenated
+tsvector (`title || ' ' || description`, or `search_vector`) also matches across a field
+boundary, and those hits grade 0.
+
+The judges split a word at every character that is not a letter or digit, so forms Postgres
+18 keeps as one token are a known difference: floats (`52.6`), hosts (`others.Sivini`,
+`pic.twitter.com`), file-like forms (`9/11`, `AR/VR`, `3/18/2018`), urls and emails, dotted
+forms (`U.S.`, `No.10`), and a signed number after a hyphen (`COVID-19`, `F-35` and `G-20`
+give Postgres `covid` and `-19`, `f` and `-35`, `g` and `-20`). A hyphenated compound of
+words (`e-mail`) Postgres indexes whole beside its parts, which the judges hold too. The
+suite load refuses a dotted form, a word joined to the next by a dot (`U.S.`, `No.10`,
+`news.com`), in a `phrase` or `boolean` query's text, naming the query: write an initialism
+without dots (`US`), anything else as separate words, or drop it.
+
+A `boolean` query's text is parsed with `internal/token`'s grammar: `AND`, `OR`, `NOT` in any
+case, parentheses, quoted phrases, `AND` between adjacent operands, `NOT` binding tighter
+than `AND` and `AND` tighter than `OR`. A document for which the expression is false grades
+0, and negated operands never score. An operand holding only stopwords drops out of the
+expression, as `to_tsquery` drops a stopword. A single letter that is not a stopword stays a
+term, as it does in Postgres and Elasticsearch: `vitamin D AND deficiency` needs the `d`. A
+quoted operand is a phrase, read one field at a time like a `phrase` query; the native
+boolean API matches it with `search_vector @@ to_tsquery`, across title, description and
+content, and the hits that span a field boundary grade 0. Scoring ranks only the documents that pass,
+and `bm25` still counts every pooled document in its term statistics. A boolean text that
+does not parse fails the suite load, naming the query, so `bench validate` and `bench pool`
+refuse it; in a pool written before, the judges leave that query unjudged, as they do a
+query without terms. Elasticsearch's `query_string` reads lowercase operators as
+terms, ORs adjacent terms, and applies no AND-before-OR precedence, so an Elasticsearch
+boolean template matches the judge only with uppercase operators, an explicit `AND` or
+`default_operator: AND`, and parentheses wherever it mixes operators.
+
+A query that filters declares it engine-neutrally, and every engine's statement for it
+applies the same filters:
+
+```yaml
+filters:
+  publisher_domain: reuters.com
+  published_after: 2024-01-01            # a date or an RFC 3339 time
+  published_before: 2024-07-01T00:00:00Z
+```
+
+`publisher_domain` is the lowercase eTLD+1 an article's url derives to (`reuters.com`, never
+`www.reuters.com` or `uk.reuters.com`); any other spelling fails the suite load, naming the
+query. `published_after` admits an article published at or after it and `published_before`
+one published strictly before it, so consecutive ranges neither overlap nor leave a gap; an
+article without a publication date fails either, as a comparison against a NULL
+`published_at` does. Engine templates must compare the same way to agree with the judges:
+`published_at >= $after AND published_at < $before` in Postgres, `gte` and `lt` in an
+Elasticsearch `range`. `bench pool` copies the
+filters into the pool entry, and `keyword` and `bm25` grade an article that violates one 0,
+the same gate as the category's. `vector` and `hybrid` do not read them.
+
+`vector` grades the semantic track as recall against exact search. Every vector engine
+searches the same model's vectors, so the question is how much of exact search's top 10 each
+engine finds. The judge grades the 10 pooled documents nearest the query by cosine 3, ties
+broken by the lower id, and every other pooled document 0; it reads the whole pool of a query
+at once and takes no `--batch`. The semantic track pools the exact pgvector arm at depth ≥ 10,
+so the pool's top 10 is the exact top 10, and `R@10` in the report is recall@10 against exact
+search. A pooled document without a stored vector stays unjudged. `hybrid` keeps its graded
+fusion.
+
+`bm25` divides a document's score by Σ (k1 + 1)·idf(t) over the query's scoring terms, the
+bound each term's contribution stays under, so the norm lies in [0, 1) and a grade depends on
+the query and the pool's term statistics (N, df, avgdl), never on another document's score:
+adding an engine to the pool does not regrade what the others found. At average length a
+document holding every term tf times has the norm tf/(tf + k1) with k1 = 1.5, so the grades
+are pinned as
+
+| norm   | grade | anchor case at average length              |
+|--------|-------|--------------------------------------------|
+| ≥ 0.50 | 3     | every term twice: 0.57                     |
+| ≥ 0.30 | 2     | every term once: 0.40                      |
+| ≥ 0.15 | 1     | one of two equally rare terms once: 0.20   |
+| < 0.15 | 0     | one of three equally rare terms once: 0.13 |
+
+These judges cross-check the LLM judge, and three of their limits are disclosed rather than
+fixed:
+
+- Every scoring term counts toward the bm25 bound, `OR` alternatives included, so `OR`
+  queries grade lower: at average length a document holding one of two equally rare
+  alternatives once normalises to 0.20, against 0.40 for one holding both.
+- `hybrid`'s text half is still the bm25 score divided by the pool's best, with hybrid's own
+  thresholds, so adding an engine to the pool can still regrade a hybrid document.
+- `hybrid` applies no phrase or boolean gate, and scores every word of a boolean text,
+  negated ones included.
 
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes
@@ -334,8 +447,8 @@ Each pool entry records, under `request_digests`, a sha256 per engine of the req
 Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: `trec/annotations.<S>.yaml`, with `graded_count` and `unjudged_count` in its meta block. The command writes the file and then exits non-zero when any pooled doc is left unjudged (`manual` excepted).
 
 Key flags:
-- `--resume` — skip docs already graded (errors if the strategy, provider, model, prompt version or rubric version changed). `bm25` and `hybrid` skip only fully graded queries and regrade any other query whole, since their grades are relative to the pool
-- `--batch N` — override LLM batch size (`bm25` and `hybrid` grade each query's whole pool at once and refuse it)
+- `--resume` — skip docs already graded (errors if the strategy, provider, model, prompt version or rubric version changed). `bm25`, `vector` and `hybrid` skip only fully graded queries and regrade any other query whole, since they grade the whole pool at once
+- `--batch N` — override LLM batch size (`bm25`, `vector` and `hybrid` grade each query's whole pool at once and refuse it)
 - `--concurrency N` — parallel Grade calls (per-doc mode)
 - `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged. A query with no usable terms still fails the run
 - `--force` — `manual` only: rewrite the placeholders from scratch. Without it, `manual` keeps every existing hand grade, adds `-1` placeholders for new pool docs, and refuses a file another judge wrote
@@ -362,6 +475,7 @@ The report is always written. A run fails, exits non-zero and leaves `reports/la
 - it ran a query the pool holds no entry for
 - it measured an engine the pool never saw
 - a (query, engine) cell's request differs from the one the pool recorded, or the pool records none, as after editing a template, a declared param or a query's params; the error names the cells (`q07/pg`). `--latency-only` skips this check
+- a query's `text`, `category` or `filters` differ from its pool entry, which is what the judges graded; the error names the queries. Editing only a description passes. A pool written before entries carried `query_text` fails as one that predates query text. `--latency-only` skips this check
 - the judgments leave pooled docs unjudged
 - an engine ranks a doc with no grade within the pool depth (`meta.pool_depth`). With requests unchanged this happens only when the corpus changed or a rank tie broke differently; the error counts the docs and names the cells
 
@@ -372,7 +486,9 @@ Judgments resolution order:
 2. `spec.defaults.judgments` (per-track default; a relative path starts at the spec file's folder, like the spec's suite paths)
 3. None → the run fails before measuring anything
 
-A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count. `provenance.pool_run_id` and `provenance.judgments_run_id` name the pool and the judgments it scored against.
+A suite query without `text` fails the run before measuring, as it fails `bench pool`; the
+run reads the suites once, before measuring, so editing one mid-run changes nothing. A
+judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count. `provenance.pool_run_id` and `provenance.judgments_run_id` name the pool and the judgments it scored against.
 
 Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)

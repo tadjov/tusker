@@ -69,9 +69,9 @@ func TestPrintDiff_SkipsNDCGWhenNoKValueIsShared(t *testing.T) {
 }
 
 func TestPrintDiff_WarnsWhenTheRunsWereScoredDifferently(t *testing.T) {
-	lexical := &meta.Judge{Strategy: "lexical"}
+	keyword := &meta.Judge{Strategy: "keyword"}
 	llm := &meta.Judge{Strategy: "llm-cli", Provider: "claude", Model: "claude-haiku-4-5"}
-	base := diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1, judge: lexical, judgments: "trec/annotations.lexical.yaml"}
+	base := diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1, judge: keyword, judgments: "trec/annotations.keyword.yaml"}
 
 	tests := []struct {
 		name    string
@@ -80,7 +80,7 @@ func TestPrintDiff_WarnsWhenTheRunsWereScoredDifferently(t *testing.T) {
 	}{
 		{name: "judge", after: func(r diffRun) diffRun { r.judge = llm; return r }, warning: "judge"},
 		{name: "judge prompt version", after: func(r diffRun) diffRun {
-			r.judge = &meta.Judge{Strategy: "lexical", PromptVersion: "v2"}
+			r.judge = &meta.Judge{Strategy: "keyword", PromptVersion: "v2"}
 			return r
 		}, warning: "judge"},
 		{name: "relevance threshold", after: func(r diffRun) diffRun { r.threshold = 2; return r }, warning: "relevance threshold"},
@@ -104,7 +104,7 @@ func TestPrintDiff_WarnsWhenTheRunsWereScoredDifferently(t *testing.T) {
 }
 
 func TestPrintDiff_NoScoringWarningForIdenticallyScoredRuns(t *testing.T) {
-	run := diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1, judge: &meta.Judge{Strategy: "lexical"}, judgments: "trec/annotations.lexical.yaml"}
+	run := diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1, judge: &meta.Judge{Strategy: "keyword"}, judgments: "trec/annotations.keyword.yaml"}
 	after := run
 	after.runID = "b"
 
@@ -254,16 +254,16 @@ func TestPrintDiff_NDCGHeadersNameTheGain(t *testing.T) {
 }
 
 func TestPrintDiff_SameJudgmentsFileInAMovedTrackIsNotAWarning(t *testing.T) {
-	judge := &meta.Judge{Strategy: "lexical"}
+	judge := &meta.Judge{Strategy: "keyword"}
 	before := diffRun{
 		runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1, judge: judge,
 		spec:      "/Users/me/projects/news-hunter/tracks/cc-news/fts/spec.yaml",
-		judgments: "/Users/me/projects/news-hunter/tracks/cc-news/fts/trec/annotations.lexical.yaml",
+		judgments: "/Users/me/projects/news-hunter/tracks/cc-news/fts/trec/annotations.keyword.yaml",
 	}
 	moved := before
 	moved.runID = "b"
 	moved.spec = "/Users/me/projects/news-hunter-wt/fix-x/tracks/cc-news/fts/spec.yaml"
-	moved.judgments = "/Users/me/projects/news-hunter-wt/fix-x/tracks/cc-news/fts/trec/annotations.lexical.yaml"
+	moved.judgments = "/Users/me/projects/news-hunter-wt/fix-x/tracks/cc-news/fts/trec/annotations.keyword.yaml"
 	swapped := moved
 	swapped.judgments = "/Users/me/projects/news-hunter-wt/fix-x/tracks/cc-news/fts/trec/annotations.bm25.yaml"
 
@@ -273,7 +273,7 @@ func TestPrintDiff_SameJudgmentsFileInAMovedTrackIsNotAWarning(t *testing.T) {
 
 	var different bytes.Buffer
 	printDiff(&different, diffReport(before), diffReport(swapped))
-	assert.Contains(t, different.String(), "judgments: trec/annotations.lexical.yaml → trec/annotations.bm25.yaml")
+	assert.Contains(t, different.String(), "judgments: trec/annotations.keyword.yaml → trec/annotations.bm25.yaml")
 }
 
 func TestPrintDiff_ChangeFromAZeroBaselineHasNoPercentage(t *testing.T) {

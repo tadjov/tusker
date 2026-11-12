@@ -34,7 +34,7 @@ func TestLoadJudgmentsMap_MissingFileExplicitErrors(t *testing.T) {
 	_, _, err := loadJudgmentsMap(filepath.Join(t.TempDir(), "nope.yaml"), true)
 	require.Error(t, err, "explicit --judgments path must error when file missing")
 	assert.Contains(t, err.Error(), "--judgments file not found")
-	assert.Contains(t, err.Error(), "lexical", "error should list valid strategies")
+	assert.Contains(t, err.Error(), "keyword", "error should list valid strategies")
 }
 
 func TestLoadJudgmentsMap_MissingFileImplicitErrors(t *testing.T) {
@@ -78,7 +78,7 @@ func TestLoadJudgmentsMap_RejectsMissingSchemaVersion(t *testing.T) {
 	path := filepath.Join(dir, "ann.yaml")
 	// Write a syntactically valid YAML but with no schema_version — the
 	// judgment loader should reject it.
-	require.NoError(t, os.WriteFile(path, []byte(`strategy: lexical
+	require.NoError(t, os.WriteFile(path, []byte(`strategy: keyword
 queries: []
 `), 0644))
 
@@ -163,11 +163,11 @@ jobs:
 id: fixture-semantic
 queries:
   - id: q1
-    description: "climate change policy"
+    text: "climate change policy"
     engines:
       a: { query: '{"query": {"match": {"title": "q1"}}}' }
   - id: q2
-    description: "central bank interest rates"
+    text: "central bank interest rates"
     engines:
       a: { query: '{"query": {"match": {"title": "q2"}}}' }
 `), 0o644))

@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/suite"
 )
 
 func TestBuildBatchGradingPrompt(t *testing.T) {
@@ -98,7 +99,7 @@ func TestConstraintFor(t *testing.T) {
 	if got := constraintFor("boolean"); !strings.Contains(got, "negated") {
 		t.Errorf("boolean constraint = %q, want it to mention negated terms", got)
 	}
-	for _, c := range []string{"", "keyword", "multi-field", "single-field"} {
+	for _, c := range []suite.Category{"", suite.CategoryKeyword, suite.CategoryMultiField, suite.CategorySingleField} {
 		if got := constraintFor(c); got != "" {
 			t.Errorf("constraintFor(%q) = %q, want empty", c, got)
 		}

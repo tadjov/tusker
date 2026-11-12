@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -70,7 +71,7 @@ func TestCheckResumeCompat_IdenticalJudgeMatches(t *testing.T) {
 }
 
 func TestCheckResumeCompat_StrategyMismatch(t *testing.T) {
-	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyLexical)})
+	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyKeyword)})
 	strat := fakeStrategy{judge: llmJudge("claude-cli", judgment.DefaultJudgeModel)}
 
 	err := checkResumeCompat(prior, strat)
@@ -241,7 +242,7 @@ type judgeFixture struct {
 	pool     *pool.PoolFile
 }
 
-func newJudgeFixture(t *testing.T, queryDesc string, titles ...string) *judgeFixture {
+func newJudgeFixture(t *testing.T, queryText string, titles ...string) *judgeFixture {
 	t.Helper()
 	track := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(track, "trec"), 0o755))
@@ -249,7 +250,7 @@ func newJudgeFixture(t *testing.T, queryDesc string, titles ...string) *judgeFix
 	require.NoError(t, os.WriteFile(filepath.Join(track, "suite.yaml"), []byte("schema_version: 1\nid: judge\n"), 0o644))
 
 	fx := &judgeFixture{track: track, articles: articleStore{}}
-	entry := pool.PoolEntry{QueryID: "q1", QueryDesc: queryDesc}
+	entry := pool.PoolEntry{QueryID: "q1", QueryText: queryText}
 	for _, title := range titles {
 		id := uuid.New()
 		fx.articles[id] = document.Article{ID: id, Title: title}
@@ -267,13 +268,21 @@ func (fx *judgeFixture) writePool(t *testing.T) {
 
 func (fx *judgeFixture) judge(t *testing.T, args ...string) error {
 	t.Helper()
+	_, err := fx.judgeOutput(t, args...)
+	return err
+}
+
+func (fx *judgeFixture) judgeOutput(t *testing.T, args ...string) (string, error) {
+	t.Helper()
 	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) {
 		return fx.articles, nil
 	})
-	cmd.SetOut(io.Discard)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs(append([]string{fx.track}, args...))
-	return cmd.ExecuteContext(context.Background())
+	err := cmd.ExecuteContext(context.Background())
+	return out.String(), err
 }
 
 func (fx *judgeFixture) writePriorBM25(t *testing.T, runID string, queries ...judgment.Entry) {
@@ -328,7 +337,7 @@ func TestJudge_FullyGradedPoolExitsZero(t *testing.T) {
 }
 
 func TestJudge_QueryWithoutTermsFailsAfterWritingTheFile(t *testing.T) {
-	fx := newJudgeFixture(t, "the news", "climate change summit")
+	fx := newJudgeFixture(t, "the of a", "climate change summit")
 	fx.writePriorBM25(t, "prior-run", judgment.Entry{QueryID: "q-gone"})
 
 	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged", "--resume")
@@ -440,7 +449,7 @@ func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
 	fx := newJudgeFixture(t, "climate change", "climate change summit")
 	q2Doc := uuid.New()
 	fx.articles[q2Doc] = document.Article{ID: q2Doc, Title: "climate report"}
-	fx.pool.Queries = append(fx.pool.Queries, pool.PoolEntry{QueryID: "q2", QueryDesc: "climate", Docs: []pool.PooledDoc{{DocID: q2Doc}}})
+	fx.pool.Queries = append(fx.pool.Queries, pool.PoolEntry{QueryID: "q2", QueryText: "climate", Docs: []pool.PooledDoc{{DocID: q2Doc}}})
 	fx.writePool(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -469,36 +478,45 @@ func TestJudge_ForceOutsideManualIsRejected(t *testing.T) {
 }
 
 // The judge grades with the package's query vectors, as pool and run rank with
-// them: the Ollama here answers with the opposite vector.
+// them: the Ollama here answers with the opposite vector. The pool holds one
+// doc stored at the package's vector and ten at the opposite one, so only the
+// package's vector puts that doc among the ten nearest.
 func TestJudge_VectorGradesWithTheTracksQueryVectors(t *testing.T) {
 	ctx := context.Background()
 	container := pkgtesting.NewPGContainerWithCleanup(ctx, t)
 	track := queryVectorsTrack(t, container.ConnString)
 	const queryText = "central bank interest rates"
 	queryVector := packageQueryVector(t, track, queryText)
-
-	docID := uuid.New()
-	conn, err := pgx.Connect(ctx, container.ConnString)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = conn.Close(ctx) })
-	_, err = conn.Exec(ctx, `INSERT INTO articles (id, url, title, content, language) VALUES ($1, $2, $3, $4, $5)`,
-		docID, "https://example.com/rates", "rates", "content", "eng")
-	require.NoError(t, err)
-	_, err = conn.Exec(ctx, `INSERT INTO article_embeddings (article_id, model_name, embedding) VALUES ($1, $2, $3)`,
-		docID, queryVectorsFixtureTag, pgvector.NewVector(queryVector))
-	require.NoError(t, err)
-
-	fx := &judgeFixture{track: track, articles: articleStore{docID: document.Article{ID: docID, Title: "rates"}}}
-	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{
-		{QueryID: "q2", QueryDesc: queryText, Docs: []pool.PooledDoc{{DocID: docID}}},
-	}}
-	fx.writePool(t)
-
-	var ollamaCalls atomic.Int32
 	opposite := make([]float32, len(queryVector))
 	for i, v := range queryVector {
 		opposite[i] = -v
 	}
+
+	conn, err := pgx.Connect(ctx, container.ConnString)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close(ctx) })
+	fx := &judgeFixture{track: track, articles: articleStore{}}
+	entry := pool.PoolEntry{QueryID: "q2", QueryText: queryText}
+	store := func(vector []float32) uuid.UUID {
+		id := uuid.New()
+		_, err := conn.Exec(ctx, `INSERT INTO articles (id, url, title, content, language) VALUES ($1, $2, $3, $4, $5)`,
+			id, "https://example.com/"+id.String(), "rates", "content", "eng")
+		require.NoError(t, err)
+		_, err = conn.Exec(ctx, `INSERT INTO article_embeddings (article_id, model_name, embedding) VALUES ($1, $2, $3)`,
+			id, queryVectorsFixtureTag, pgvector.NewVector(vector))
+		require.NoError(t, err)
+		fx.articles[id] = document.Article{ID: id, Title: "rates"}
+		entry.Docs = append(entry.Docs, pool.PooledDoc{DocID: id})
+		return id
+	}
+	docID := store(queryVector)
+	for range 10 {
+		store(opposite)
+	}
+	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{entry}}
+	fx.writePool(t)
+
+	var ollamaCalls atomic.Int32
 	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		ollamaCalls.Add(1)
 		_ = json.NewEncoder(w).Encode(map[string]any{"embedding": opposite})
@@ -541,4 +559,86 @@ func packageQueryVector(t *testing.T, track, text string) []float32 {
 	vector, err := store.QueryVector(context.Background(), text)
 	require.NoError(t, err)
 	return vector
+}
+
+func TestJudge_KeywordStrategyWritesItsOwnSet(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+	require.NoError(t, fx.judge(t, "--strategy", "keyword"))
+
+	assert.Equal(t, "keyword", fx.annotations(t, "keyword").Judge().Strategy)
+}
+
+func TestJudge_LexicalIsNoLongerAStrategy(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+	err := fx.judge(t, "--strategy", "lexical")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "keyword")
+	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.lexical.yaml"))
+}
+
+func TestJudge_PoolQueryWithoutTextFailsNamingIt(t *testing.T) {
+	for _, strategy := range []string{"keyword", "bm25"} {
+		t.Run(strategy, func(t *testing.T) {
+			fx := newJudgeFixture(t, "", "climate change summit")
+			fx.pool.Queries[0].QueryDesc = "Coverage of climate change"
+			fx.writePool(t)
+
+			err := fx.judge(t, "--strategy", strategy)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `"q1"`)
+			assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations."+strategy+".yaml"))
+		})
+	}
+}
+
+func TestJudge_ManualNeedsNoQueryText(t *testing.T) {
+	fx := newJudgeFixture(t, "", "climate change summit")
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
+}
+
+// keyword, bm25, vector and hybrid grade the query's text through new rules,
+// so a file their v1 rubric graded cannot be resumed.
+func TestCheckResumeCompat_RefusesTheDeterministicJudgesV1Rubric(t *testing.T) {
+	for _, strategy := range []judgment.Strategy{
+		judgment.NewKeywordStrategy(),
+		judgment.NewBM25Strategy(),
+		judgment.NewVectorStrategyWithStore(stubVectorStore{}, "qwen3-embedding:0.6b@1024"),
+		judgment.NewHybridStrategyWithStore(stubVectorStore{}, "qwen3-embedding:0.6b@1024"),
+	} {
+		t.Run(strategy.Name(), func(t *testing.T) {
+			v1 := strategy.Describe()
+			v1.RubricVersion = "v1"
+
+			err := checkResumeCompat(fileWith(v1), strategy)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "rubric v1")
+		})
+	}
+}
+
+func TestJudge_UnparsableBooleanTextFailsAfterWritingTheFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate AND (politics", "climate change summit")
+	fx.pool.Queries[0].Category = "boolean"
+	fx.writePool(t)
+
+	out, err := fx.judgeOutput(t, "--strategy", "bm25", "--allow-unjudged")
+
+	var unparsed *judgment.BooleanTextError
+	require.ErrorAs(t, err, &unparsed)
+	assert.Equal(t, "q1", unparsed.QueryID)
+	jf := fx.annotations(t, "bm25")
+	assert.Equal(t, judgment.GradeUnjudged, gradesByQuery(jf)["q1"][fx.pool.Queries[0].Docs[0].DocID])
+	require.NotNil(t, jf.Meta.GradedCount)
+	require.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Equal(t, 0, *jf.Meta.GradedCount)
+	assert.Equal(t, 1, *jf.Meta.UnjudgedCount)
+	// Every flush already writes the same file, so only the closing line shows
+	// the command finalised it before failing.
+	assert.Regexp(t, `Judgments written: \S+/trec/annotations\.bm25\.yaml`, out)
 }

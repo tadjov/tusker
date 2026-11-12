@@ -102,7 +102,7 @@ func (f *fakeBatchStrategy) GradeBatch(_ context.Context, _ GradingQuery, docs [
 func buildPool(t *testing.T, n int) (*pool.PoolFile, map[uuid.UUID]document.Article) {
 	t.Helper()
 	articles := make(map[uuid.UUID]document.Article, n)
-	pe := pool.PoolEntry{QueryID: "q1", QueryDesc: "test"}
+	pe := pool.PoolEntry{QueryID: "q1", QueryText: "test"}
 	for i := 0; i < n; i++ {
 		id := uuid.New()
 		articles[id] = document.Article{ID: id, Title: "title"}
@@ -269,11 +269,11 @@ func TestRunner_NilStrategyErrors(t *testing.T) {
 // A query with no usable terms fails the run, but only after every other query
 // is graded, so the file still lands and names what is missing.
 func TestRunner_QueryWithoutTermsFailsTheRunAfterGradingTheRest(t *testing.T) {
-	for _, strategy := range []Strategy{NewLexicalStrategy(), NewBM25Strategy()} {
+	for _, strategy := range []Strategy{NewKeywordStrategy(), NewBM25Strategy()} {
 		t.Run(strategy.Name(), func(t *testing.T) {
 			pf, articles := buildPool(t, 3)
-			pf.Queries[0].QueryDesc = "the news"
-			usable := pool.PoolEntry{QueryID: "q2", QueryDesc: "title"}
+			pf.Queries[0].QueryText = "the of a"
+			usable := pool.PoolEntry{QueryID: "q2", QueryText: "title"}
 			for id := range articles {
 				usable.Docs = append(usable.Docs, pool.PooledDoc{DocID: id})
 			}
@@ -305,5 +305,55 @@ func TestRunner_QueryWithoutTermsFailsTheRunAfterGradingTheRest(t *testing.T) {
 			assert.Len(t, grades["q2"], 3)
 			assert.True(t, sunk["q1"] && sunk["q2"], "both queries reach the sink")
 		})
+	}
+}
+
+// Every judge bench judge runs through the runner grades the query's text, so
+// a pool entry without one fails the run before anything is graded.
+func TestRunner_PoolQueryWithoutTextFailsBeforeGrading(t *testing.T) {
+	pf, articles := buildPool(t, 3)
+	graded := pool.PoolEntry{QueryID: "q0", QueryText: "title", Docs: pf.Queries[0].Docs}
+	pf.Queries[0].QueryText = ""
+	pf.Queries[0].QueryDesc = "A query described but never written"
+	pf.Queries = append([]pool.PoolEntry{graded}, pf.Queries...)
+	sunk := false
+
+	_, err := NewRunner(RunnerConfig{
+		Strategy: &fakeBatchStrategy{name: "fake-batch", batchSize: 10},
+		Reader:   &stubStorageReader{articles: articles},
+		Sink:     func(QueryProgress, Entry) error { sunk = true; return nil },
+	}).Run(context.Background(), pf)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"q1"`)
+	assert.False(t, sunk, "no query may be graded once one has no text")
+}
+
+// A boolean text that does not parse is a property of its query, like one
+// without terms: that query stays unjudged and the others are graded.
+func TestRunner_UnparsableBooleanTextFailsTheRunAfterGradingTheRest(t *testing.T) {
+	pf, articles := buildPool(t, 3)
+	pf.Queries[0].QueryText = "title AND (unclosed"
+	pf.Queries[0].Category = "boolean"
+	usable := pool.PoolEntry{QueryID: "q2", QueryText: "title"}
+	for id := range articles {
+		usable.Docs = append(usable.Docs, pool.PooledDoc{DocID: id})
+	}
+	pf.Queries = append(pf.Queries, usable)
+
+	jf, err := NewRunner(RunnerConfig{Strategy: NewBM25Strategy(), Reader: &stubStorageReader{articles: articles}}).Run(context.Background(), pf)
+
+	var unparsed *BooleanTextError
+	require.ErrorAs(t, err, &unparsed)
+	assert.Equal(t, "q1", unparsed.QueryID)
+	require.NotNil(t, jf)
+	for _, qe := range jf.Queries {
+		for _, d := range qe.Docs {
+			if qe.QueryID == "q1" {
+				assert.Equal(t, GradeUnjudged, d.Grade)
+			} else {
+				assert.NotEqual(t, GradeUnjudged, d.Grade)
+			}
+		}
 	}
 }

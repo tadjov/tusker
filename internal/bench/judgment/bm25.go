@@ -3,8 +3,6 @@ package judgment
 import (
 	"context"
 	"math"
-	"sort"
-	"strings"
 
 	"github.com/tadjov/tusker/internal/bench/meta"
 )
@@ -12,15 +10,16 @@ import (
 const (
 	bm25K1            = 1.5
 	bm25B             = 0.75
-	bm25RubricVersion = "v1"
+	bm25RubricVersion = "v2"
 )
 
 // BM25Strategy grades candidates with Okapi BM25 computed over the per-query
 // candidate pool as a local corpus: idf from pool document frequencies, avgdl
-// from pool documents. Each doc's score is normalised against the top-scoring
-// candidate and mapped to a grade 0-3.
+// from pool documents. A doc's score is divided by the bound no score reaches,
+// Σ (k1+1)·idf over the query's terms, so its grade depends on the query and
+// the pool's term statistics, never on how well another doc scores.
 //
-// It is a heuristic, no-network judge — stronger than lexical token-overlap
+// It is a heuristic, no-network judge — stronger than the keyword judge's token overlap
 // because it rewards rarer terms and saturates term frequency, but still purely
 // keyword-based with no semantic understanding. Use it as a reproducible
 // baseline alongside the LLM judges.
@@ -34,28 +33,69 @@ func (BM25Strategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyBM25), RubricVersion: bm25RubricVersion}
 }
 
-func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
-	norms, err := s.normScores(q, docs)
+// GradePool gives 0 to a document the query's filters or category gate refuse;
+// the term statistics still count it.
+func (BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
+	tq, err := readTermQuery(q)
 	if err != nil {
 		return nil, err
 	}
+	analyzed := analyzeDocs(docs)
+	scores := bm25Score(tq.terms, analyzed)
 	out := make([]GradedDoc, len(docs))
 	for i, d := range docs {
-		out[i] = GradedDoc{DocID: d.ID, Grade: gradeFromNorm(norms[i])}
+		grade := GradeNotRelev
+		if tq.admits(analyzed[i]) {
+			grade = gradeFromBM25Norm(scores.docs[i] / scores.bound)
+		}
+		out[i] = GradedDoc{DocID: d.ID, Grade: grade}
 	}
 	return out, nil
 }
 
-// normScores returns each doc's BM25 score normalised to [0,1] against the
-// top-scoring candidate in the pool. Shared with HybridStrategy.
-func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, error) {
-	terms, err := queryTerms(q)
-	if err != nil {
-		return nil, err
+// At a doc's average length, a term occurring tf times scores
+// idf·(k1+1)·tf/(tf+k1), so a doc holding every query term tf times has the
+// norm tf/(tf+k1) whatever the idfs: 0.40 once, 0.57 twice, 0.67 three times.
+// A doc holding only some terms once has 0.40 times their share of Σ idf: 0.20
+// for one of two equally rare terms, 0.13 for one of three.
+const (
+	bm25HighlyNorm     = 0.50 // every term twice, not once
+	bm25RelevantNorm   = 0.30 // every term once, not half of them
+	bm25MarginallyNorm = 0.15 // half of the terms once, not a third
+)
+
+func gradeFromBM25Norm(norm float64) int {
+	switch {
+	case norm >= bm25HighlyNorm:
+		return GradeHighly
+	case norm >= bm25RelevantNorm:
+		return GradeRelevant
+	case norm >= bm25MarginallyNorm:
+		return GradeMarginally
+	default:
+		return GradeNotRelev
 	}
-	norms := make([]float64, len(docs))
+}
+
+func analyzeDocs(docs []GradingDoc) []analyzedDoc {
+	out := make([]analyzedDoc, len(docs))
+	for i, d := range docs {
+		out[i] = analyzeDoc(d)
+	}
+	return out
+}
+
+type bm25Scores struct {
+	docs []float64
+	// bound is Σ (k1+1)·idf over the query's terms, which no doc's score
+	// reaches.
+	bound float64
+}
+
+func bm25Score(terms []string, docs []analyzedDoc) bm25Scores {
+	scores := bm25Scores{docs: make([]float64, len(docs))}
 	if len(docs) == 0 {
-		return norms, nil
+		return scores
 	}
 
 	counts := make([]map[string]int, len(docs))
@@ -63,7 +103,12 @@ func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, er
 	df := map[string]int{}
 	totalLen := 0
 	for i, d := range docs {
-		c := tokenCounts(docText(d))
+		c := map[string]int{}
+		for _, field := range d.fields() {
+			for _, t := range field {
+				c[t]++
+			}
+		}
 		counts[i] = c
 		for _, n := range c {
 			lengths[i] += n
@@ -79,70 +124,21 @@ func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, er
 		avgdl = 1
 	}
 	n := float64(len(docs))
+	idf := make(map[string]float64, len(terms))
+	for _, t := range terms {
+		idf[t] = math.Log(1 + (n-float64(df[t])+0.5)/(float64(df[t])+0.5))
+		scores.bound += (bm25K1 + 1) * idf[t]
+	}
 
-	scores := make([]float64, len(docs))
-	maxScore := 0.0
 	for i := range docs {
 		dl := float64(lengths[i])
-		var score float64
 		for _, t := range terms {
 			tf := float64(counts[i][t])
 			if tf == 0 {
 				continue
 			}
-			idf := math.Log(1 + (n-float64(df[t])+0.5)/(float64(df[t])+0.5))
-			score += idf * (tf * (bm25K1 + 1)) / (tf + bm25K1*(1-bm25B+bm25B*dl/avgdl))
-		}
-		scores[i] = score
-		if score > maxScore {
-			maxScore = score
+			scores.docs[i] += idf[t] * (tf * (bm25K1 + 1)) / (tf + bm25K1*(1-bm25B+bm25B*dl/avgdl))
 		}
 	}
-
-	if maxScore > 0 {
-		for i := range docs {
-			norms[i] = scores[i] / maxScore
-		}
-	}
-	return norms, nil
-}
-
-// gradeFromNorm maps a [0,1] relevance score to a grade. Shared by BM25 and the
-// hybrid fusion score.
-func gradeFromNorm(norm float64) int {
-	switch {
-	case norm >= 0.66:
-		return GradeHighly
-	case norm >= 0.40:
-		return GradeRelevant
-	case norm >= 0.15:
-		return GradeMarginally
-	default:
-		return GradeNotRelev
-	}
-}
-
-func tokenizeSlice(s string) []string {
-	set := tokenize(s)
-	out := make([]string, 0, len(set))
-	for t := range set {
-		out = append(out, t)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func tokenCounts(s string) map[string]int {
-	out := map[string]int{}
-	for _, raw := range tokenSplit.Split(strings.ToLower(s), -1) {
-		if len(raw) < 3 {
-			continue
-		}
-		out[raw]++
-	}
-	return out
-}
-
-func docText(d GradingDoc) string {
-	return strings.Join([]string{d.Title, d.Description, d.Content}, " ")
+	return scores
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -86,9 +88,10 @@ func NewRunner(cfg RunnerConfig) *Runner {
 }
 
 // Run grades every pool entry and returns a complete JudgmentFile. A query with
-// no usable terms leaves its docs unjudged without stopping the others: Run
-// then returns the file together with an error that joins a NoQueryTermsError
-// per such query.
+// no usable terms, or with a boolean text that does not parse, leaves its docs
+// unjudged without stopping the others: Run then returns the file together
+// with an error that joins a NoQueryTermsError or BooleanTextError per such
+// query.
 func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 	if r.cfg.Strategy == nil {
 		return nil, fmt.Errorf("runner: strategy is nil")
@@ -104,6 +107,10 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 		return nil, fmt.Errorf("runner: strategy %q implements no grading interface", r.cfg.Strategy.Name())
 	}
 
+	if err := requireQueryText(pf); err != nil {
+		return nil, err
+	}
+
 	prior := indexExisting(r.cfg.Existing)
 
 	judge := r.cfg.Strategy.Describe()
@@ -115,8 +122,7 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 	var unusable []error
 	for _, entry := range pf.Queries {
 		ge, prog, err := r.gradeQuery(ctx, entry, prior[entry.QueryID])
-		var noTerms *NoQueryTermsError
-		if errors.As(err, &noTerms) {
+		if FailsWholeQuery(err) {
 			unusable = append(unusable, err)
 		} else if err != nil {
 			return nil, fmt.Errorf("grade query %q: %w", entry.QueryID, err)
@@ -133,6 +139,19 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 		}
 	}
 	return jf, errors.Join(unusable...)
+}
+
+func requireQueryText(pf *pool.PoolFile) error {
+	var missing []string
+	for _, entry := range pf.Queries {
+		if entry.QueryText == "" {
+			missing = append(missing, strconv.Quote(entry.QueryID))
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("pool queries %s have no text to grade: give each suite query its text and re-pool", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map[uuid.UUID]int) (Entry, QueryProgress, error) {
@@ -169,7 +188,13 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		return ge, prog, nil
 	}
 
-	q := GradingQuery{ID: entry.QueryID, Description: entry.QueryDesc, Category: entry.Category}
+	q := GradingQuery{
+		ID:          entry.QueryID,
+		Text:        entry.QueryText,
+		Description: entry.QueryDesc,
+		Category:    entry.Category,
+		Filters:     entry.Filters,
+	}
 	var gradedByID map[uuid.UUID]int
 	var err error
 	if ps, ok := r.cfg.Strategy.(PoolStrategy); ok {
@@ -177,8 +202,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 	} else {
 		gradedByID, err = r.gradeTodo(ctx, q, todo)
 	}
-	var noTerms *NoQueryTermsError
-	if err != nil && !errors.As(err, &noTerms) {
+	if err != nil && !FailsWholeQuery(err) {
 		return ge, prog, err
 	}
 
@@ -229,8 +253,7 @@ func (r *Runner) gradeWholePool(ctx context.Context, ps PoolStrategy, q GradingQ
 		return nil, ctxErr
 	}
 	var width *VectorWidthError
-	var noTerms *NoQueryTermsError
-	if errors.As(err, &width) || errors.As(err, &noTerms) {
+	if errors.As(err, &width) || FailsWholeQuery(err) {
 		return nil, err
 	}
 	gradedByID := make(map[uuid.UUID]int, len(results))
@@ -345,8 +368,8 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 	return nil
 }
 
-// runPerDoc leaves a doc unjudged when its grade fails, except for a
-// NoQueryTermsError, which fails every doc of the query and is returned.
+// runPerDoc leaves a doc unjudged when its grade fails, except for an error
+// that fails every doc of the query, which is returned.
 func (r *Runner) runPerDoc(ctx context.Context, s DocStrategy, q GradingQuery, docs []GradingDoc, into map[uuid.UUID]int) error {
 	sem := make(chan struct{}, r.cfg.Concurrency)
 	var wg sync.WaitGroup
@@ -365,8 +388,7 @@ func (r *Runner) runPerDoc(ctx context.Context, s DocStrategy, q GradingQuery, d
 			defer func() { <-sem }()
 
 			grade, err := s.Grade(ctx, q, gd)
-			var noTerms *NoQueryTermsError
-			if errors.As(err, &noTerms) {
+			if FailsWholeQuery(err) {
 				mu.Lock()
 				queryErr = err
 				mu.Unlock()
@@ -407,10 +429,12 @@ func (r *Runner) fetchDocs(ctx context.Context, pooled []pool.PooledDoc) (map[uu
 
 func toGradingDoc(a document.Article) GradingDoc {
 	return GradingDoc{
-		ID:          a.ID,
-		Title:       a.Title,
-		Description: a.Description,
-		Content:     a.Content,
+		ID:              a.ID,
+		Title:           a.Title,
+		Description:     a.Description,
+		Content:         a.Content,
+		PublishedAt:     a.PublishedAt,
+		PublisherDomain: a.PublisherDomain,
 	}
 }
 

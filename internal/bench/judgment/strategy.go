@@ -4,25 +4,33 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tadjov/tusker/internal/bench/meta"
+	"github.com/tadjov/tusker/internal/bench/suite"
 	"github.com/tadjov/tusker/internal/storage"
 )
 
-// GradingQuery is the search intent the judge uses to grade.
+// GradingQuery is the query a judge grades against.
 type GradingQuery struct {
-	ID          string
+	ID string
+	// Text is the query as a user would type it. The deterministic judges grade
+	// it and look its vector up by it; Description only describes it.
+	Text        string
 	Description string
-	Category    string
+	Category    suite.Category
+	Filters     suite.Filters
 }
 
 // GradingDoc is a single article candidate to grade.
 type GradingDoc struct {
-	ID          uuid.UUID
-	Title       string
-	Description string
-	Content     string
+	ID              uuid.UUID
+	Title           string
+	Description     string
+	Content         string
+	PublishedAt     time.Time
+	PublisherDomain string
 }
 
 // Strategy names a grader. It grades through one of DocStrategy,
@@ -75,8 +83,8 @@ type StrategyKind string
 // signals; LLM strategies call out to a model; manual is a placeholder for
 // human grading.
 const (
-	// StrategyLexical Heuristic.
-	StrategyLexical StrategyKind = "lexical" // token-overlap baseline
+	// StrategyKeyword Heuristic.
+	StrategyKeyword StrategyKind = "keyword" // token-overlap baseline
 	StrategyBM25    StrategyKind = "bm25"    // pool-local Okapi BM25
 	StrategyVector  StrategyKind = "vector"  // embedding cosine similarity
 	StrategyHybrid  StrategyKind = "hybrid"  // BM25 + vector fusion
@@ -113,8 +121,8 @@ type StrategyOptions struct {
 
 func NewStrategy(kind StrategyKind, opts StrategyOptions) (Strategy, error) {
 	switch kind {
-	case StrategyLexical:
-		return NewLexicalStrategy(), nil
+	case StrategyKeyword:
+		return NewKeywordStrategy(), nil
 	case StrategyBM25:
 		return NewBM25Strategy(), nil
 	case StrategyVector:
@@ -130,7 +138,7 @@ func NewStrategy(kind StrategyKind, opts StrategyOptions) (Strategy, error) {
 	}
 }
 
-// NewStrategyFromSelector resolves a judgment-set name ("lexical",
+// NewStrategyFromSelector resolves a judgment-set name ("keyword",
 // "claude-cli", …) and constructs the strategy that produced it. Used on read
 // paths; bench judge builds strategies from explicit --strategy/--provider.
 func NewStrategyFromSelector(sel string, opts StrategyOptions) (Strategy, error) {

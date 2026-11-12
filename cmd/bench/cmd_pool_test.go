@@ -1,12 +1,15 @@
 package main
 
 import (
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tadjov/tusker/internal/bench/runner"
+	"github.com/tadjov/tusker/internal/bench/suite"
 )
 
 // Two jobs sharing a suite must produce ONE pool entry per query_id, not one
@@ -49,11 +52,11 @@ func TestBuildPoolFile_DedupsQueryAcrossJobs(t *testing.T) {
 		},
 	}
 
-	pf := buildPoolFile(result, map[string]string{"q1": "desc"}, map[string]string{"q1": "keyword"}, 50)
+	pf := buildPoolFile(result, map[string]suite.Query{"q1": {ID: "q1", Text: "text", Description: "desc", Category: "keyword"}}, 50)
 
 	require.Len(t, pf.Queries, 1, "q1 should appear exactly once after merging jobs")
 	assert.Equal(t, "q1", pf.Queries[0].QueryID)
-	assert.Equal(t, "keyword", pf.Queries[0].Category)
+	assert.Equal(t, suite.CategoryKeyword, pf.Queries[0].Category)
 
 	// Union across both jobs = {id1, id2, id3}, deduplicated.
 	got := make(map[uuid.UUID]bool)
@@ -82,9 +85,79 @@ func TestBuildPoolFile_PreservesDistinctQueries(t *testing.T) {
 	}
 	result := &runner.BenchmarkResult{Jobs: []*runner.JobResult{job}}
 
-	pf := buildPoolFile(result, map[string]string{"q1": "d1", "q2": "d2"}, nil, 50)
+	pf := buildPoolFile(result, map[string]suite.Query{"q1": {ID: "q1", Text: "t1"}, "q2": {ID: "q2", Text: "t2"}}, 50)
 
 	require.Len(t, pf.Queries, 2)
 	assert.Equal(t, "q1", pf.Queries[0].QueryID)
 	assert.Equal(t, "q2", pf.Queries[1].QueryID)
+}
+
+func TestPool_EntryCarriesTheQueryTextBesideTheDescription(t *testing.T) {
+	doc := uuid.New()
+	cluster := fakeCluster(t, map[string]*fakeIndex{
+		"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+		"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+	})
+	tr := newLineageTrack(t, cluster)
+
+	pf := tr.pool(t)
+
+	got := map[string][2]string{}
+	for _, entry := range pf.Queries {
+		got[entry.QueryID] = [2]string{entry.QueryText, entry.QueryDesc}
+	}
+	assert.Equal(t, map[string][2]string{
+		"q1": {"first query", "The first lineage query"},
+		"q2": {"second query", "The second lineage query"},
+	}, got)
+}
+
+func TestPool_QueryWithoutTextFailsNamingIt(t *testing.T) {
+	doc := uuid.New()
+	cluster := fakeCluster(t, map[string]*fakeIndex{
+		"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+		"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+	})
+	tr := newLineageTrack(t, cluster)
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: second query\n", "")
+
+	_, err := execute(t, newPoolCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"q2"`)
+	assert.NoFileExists(t, tr.poolPath())
+}
+
+func TestPool_EntryCarriesTheQueryFilters(t *testing.T) {
+	doc := uuid.New()
+	cluster := fakeCluster(t, map[string]*fakeIndex{
+		"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+		"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
+	})
+	tr := newLineageTrack(t, cluster)
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: first query\n",
+		"    text: first query\n    filters: { publisher_domain: reuters.com, published_after: 2024-01-01 }\n")
+
+	pf := tr.pool(t)
+
+	got := map[string]suite.Filters{}
+	for _, entry := range pf.Queries {
+		got[entry.QueryID] = entry.Filters
+	}
+	assert.Equal(t, map[string]suite.Filters{
+		"q1": {PublisherDomain: "reuters.com", PublishedAfter: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+		"q2": {},
+	}, got)
+}
+
+func TestPool_BooleanTextThatDoesNotParseFailsNamingTheQuery(t *testing.T) {
+	cluster := fakeCluster(t, map[string]*fakeIndex{"a": {count: 10}, "b": {count: 10}})
+	tr := newLineageTrack(t, cluster)
+	editFile(t, filepath.Join(tr.dir, "suite.yaml"), "    text: first query\n", "    text: \"first AND (query\"\n    category: boolean\n")
+
+	_, err := execute(t, newPoolCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"q1"`)
+	assert.NoFileExists(t, tr.poolPath())
 }

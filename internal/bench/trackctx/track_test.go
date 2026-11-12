@@ -217,8 +217,8 @@ func TestJudgmentsPath_StrategyVsExplicitPath(t *testing.T) {
 
 	t.Run("bare name expands to convention", func(t *testing.T) {
 		assert.Equal(t,
-			filepath.Join(canonical(t, track), "trec", "annotations.lexical.yaml"),
-			tr.JudgmentsPath("lexical"))
+			filepath.Join(canonical(t, track), "trec", "annotations.keyword.yaml"),
+			tr.JudgmentsPath("keyword"))
 	})
 	t.Run("explicit path used verbatim", func(t *testing.T) {
 		p := "/tmp/some/other.yaml"

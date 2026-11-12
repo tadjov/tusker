@@ -88,6 +88,11 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 
+	queries, err := collectSuiteQueries(bs)
+	if err != nil {
+		return fmt.Errorf("load suite queries: %w", err)
+	}
+
 	vectorStore, closeVectorStore, err := buildQueryVectorStore(cmd.Context(), bs, tr)
 	if err != nil {
 		return fmt.Errorf("build vector store: %w", err)
@@ -116,12 +121,7 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 		return incompletePoolError(dropped)
 	}
 
-	descs, cats, err := collectQueryDescriptions(bs)
-	if err != nil {
-		return fmt.Errorf("load query descriptions: %w", err)
-	}
-
-	pf := buildPoolFile(result, descs, cats, depth)
+	pf := buildPoolFile(result, queries, depth)
 	pf.Meta = meta.New("pool")
 	pf.Meta.SpecID = bs.ID
 	pf.Meta.PoolDepth = depth
@@ -150,7 +150,7 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 // job), so the same query_id surfaces in several JobResults. We union the
 // per-engine executions by query_id so each query is pooled — and later judged
 // — exactly once, regardless of how many jobs touched it.
-func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string, depth int) *pool.PoolFile {
+func buildPoolFile(result *runner.BenchmarkResult, queries map[string]suite.Query, depth int) *pool.PoolFile {
 	pf := &pool.PoolFile{}
 
 	var order []string                                       // first-seen query order
@@ -195,10 +195,13 @@ func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string
 
 	pf.SuiteName = strings.Join(jobNames, ",")
 	for _, qID := range order {
+		q := queries[qID]
 		pf.Queries = append(pf.Queries, pool.PoolEntry{
 			QueryID:        qID,
-			QueryDesc:      descs[qID],
-			Category:       cats[qID],
+			QueryText:      q.Text,
+			QueryDesc:      q.Description,
+			Category:       q.Category,
+			Filters:        q.Filters,
 			Docs:           pool.PoolResults(byQuery[qID], depth),
 			RequestDigests: digests[qID],
 		})
@@ -206,9 +209,11 @@ func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string
 	return pf
 }
 
-func collectQueryDescriptions(bs *spec.BenchSpec) (descs, cats map[string]string, err error) {
-	descs = make(map[string]string)
-	cats = make(map[string]string)
+// collectSuiteQueries reads every job's suite queries by id. A query without
+// text fails: the judges grade it, so a pool must carry it and a run compares
+// it with the pool's.
+func collectSuiteQueries(bs *spec.BenchSpec) (map[string]suite.Query, error) {
+	queries := make(map[string]suite.Query)
 	seen := make(map[string]struct{})
 	for _, job := range bs.Jobs {
 		if _, ok := seen[job.Suite]; ok {
@@ -217,18 +222,16 @@ func collectQueryDescriptions(bs *spec.BenchSpec) (descs, cats map[string]string
 		seen[job.Suite] = struct{}{}
 		ls, err := suite.LoadFromFile(job.Suite)
 		if err != nil {
-			return nil, nil, fmt.Errorf("load suite %q for job %q: %w", job.Suite, job.Name, err)
+			return nil, fmt.Errorf("load suite %q for job %q: %w", job.Suite, job.Name, err)
 		}
 		for _, q := range ls.Suite.Queries {
-			if q.Description != "" {
-				descs[q.ID] = q.Description
+			if q.Text == "" {
+				return nil, fmt.Errorf("query %q in suite %s has no text: give it the string a user would type", q.ID, job.Suite)
 			}
-			if q.Category != "" {
-				cats[q.ID] = q.Category
-			}
+			queries[q.ID] = q
 		}
 	}
-	return descs, cats, nil
+	return queries, nil
 }
 
 // collectEngines lists, in spec order, the engines that answered at least one

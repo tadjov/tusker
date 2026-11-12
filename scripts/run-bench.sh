@@ -28,8 +28,8 @@ make build-bench
 ./bin/bench pool "$TRACK"
 ./bin/bench show pool "$TRACK"
 
-# 4a. Grade with the deterministic lexical baseline (no LLM, no API).
-./bin/bench judge "$TRACK" --strategy lexical
+# 4a. Grade with the deterministic keyword baseline (no LLM, no API).
+./bin/bench judge "$TRACK" --strategy keyword
 
 # 4b. ... OR with the Claude CLI per batch (cheap: bills through your Claude
 #     subscription). Model defaults to haiku; --model sonnet for a stronger judge.
@@ -42,7 +42,7 @@ make build-bench
 ./bin/bench judge "$TRACK" --strategy manual
 
 # 5. Inspect grades before running the benchmark.
-./bin/bench show judgments "$TRACK" --strategy lexical
+./bin/bench show judgments "$TRACK" --strategy keyword
 
 # 6. Run the benchmark. Defaults to spec.defaults.judgments; override with
 #    --judgments <name> to swap which judgment set scores this run.
@@ -50,5 +50,5 @@ make build-bench
 ./bin/bench run "$TRACK" --judgments claude-cli
 
 # 7. (Optional) Export TREC qrels for trec_eval / external tooling.
-#    Judgment sets are addressed by name: lexical, claude-cli, claude-api, ...
+#    Judgment sets are addressed by name: keyword, claude-cli, claude-api, ...
 ./bin/bench export "$TRACK" --format qrels --strategy claude-cli
