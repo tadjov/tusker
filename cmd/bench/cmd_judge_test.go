@@ -714,6 +714,10 @@ func TestJudge_LLMJudgeBlockRecordsItsEffortAndBatching(t *testing.T) {
 func gradingClaudeCLI(t *testing.T) string {
 	t.Helper()
 	script := `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "2.1.322 (Claude Code)"
+  exit 0
+fi
 ids=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | sort -u)
 entries=""
 for id in $ids; do
@@ -768,7 +772,7 @@ func TestJudge_LLMUnknownEffortFailsNamingTheFlag(t *testing.T) {
 // its v2 prompt graded cannot be resumed.
 func TestCheckResumeCompat_RefusesTheLLMJudgesV2Prompt(t *testing.T) {
 	strategy, err := judgment.NewLLMStrategy(judgment.StrategyOptions{
-		Provider: judgment.ProviderClaudeCLI, Model: "sonnet", Effort: judgment.EffortLow,
+		Provider: judgment.ProviderClaudeCLI, CLIBinary: gradingClaudeCLI(t), Model: "sonnet", Effort: judgment.EffortLow,
 	})
 	require.NoError(t, err)
 	v2 := strategy.Describe()

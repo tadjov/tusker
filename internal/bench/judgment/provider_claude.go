@@ -95,9 +95,10 @@ const claudeCLIDisableAdvisor = "CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1"
 
 // claudeCLIProvider drives `claude -p` as a subprocess.
 type claudeCLIProvider struct {
-	binary string
-	model  string
-	effort Effort
+	binary  string
+	version string
+	model   string
+	effort  Effort
 }
 
 func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
@@ -112,7 +113,23 @@ func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
 	if bin == "" {
 		bin = claudeDefaultBinary
 	}
-	return &claudeCLIProvider{binary: bin, model: model, effort: opts.Effort}, nil
+	version, err := claudeCLIVersion(bin)
+	if err != nil {
+		return nil, err
+	}
+	return &claudeCLIProvider{binary: bin, version: version, model: model, effort: opts.Effort}, nil
+}
+
+// claudeCLIVersion is what the CLI reports with --version, so the judge block
+// names the CLI that grades rather than where it is installed.
+func claudeCLIVersion(binary string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, binary, "--version").Output()
+	if err != nil {
+		return "", fmt.Errorf("run %s --version: %w", binary, err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func (p *claudeCLIProvider) Name() Provider { return ProviderClaudeCLI }
@@ -122,14 +139,14 @@ func (p *claudeCLIProvider) Effort() Effort { return p.effort }
 func (p *claudeCLIProvider) Invocation() string {
 	args := p.args("<system-prompt>")
 	words := make([]string, 0, len(args)+3)
-	words = append(words, claudeCLIDisableAdvisor, "CLAUDE_CODE_MAX_OUTPUT_TOKENS=<max-output-tokens>", p.binary)
+	words = append(words, claudeCLIDisableAdvisor, "CLAUDE_CODE_MAX_OUTPUT_TOKENS=<max-output-tokens>", claudeDefaultBinary)
 	for _, arg := range args {
 		if arg == "" {
 			arg = `""`
 		}
 		words = append(words, arg)
 	}
-	return strings.Join(words, " ")
+	return claudeDefaultBinary + " --version " + p.version + "; " + strings.Join(words, " ")
 }
 
 func (p *claudeCLIProvider) args(system string) []string {

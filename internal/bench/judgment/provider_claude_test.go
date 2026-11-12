@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/meta"
 	"github.com/tadjov/tusker/internal/bench/pool"
 	"github.com/tadjov/tusker/internal/types/document"
 )
@@ -59,7 +60,8 @@ func TestClaudeCLIProvider_GradesIsolatedAndRecordsItsInvocation(t *testing.T) {
 	assert.Empty(t, call.cwdListing, "nothing in the working directory for the CLI to discover")
 	assert.NoDirExists(t, call.cwd, "the working directory is removed after the call")
 
-	want := []string{"CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1", "CLAUDE_CODE_MAX_OUTPUT_TOKENS=<max-output-tokens>", cli.path}
+	want := []string{"claude", "--version", "2.1.322", "(Claude", "Code);",
+		"CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1", "CLAUDE_CODE_MAX_OUTPUT_TOKENS=<max-output-tokens>", "claude"}
 	for _, arg := range call.args {
 		switch arg {
 		case "":
@@ -127,6 +129,37 @@ func TestClaudeCLIProvider_GradesUnderTheJudgesBudgetWhateverTheParentEnvSays(t 
 	}
 }
 
+// The judge block names the CLI by the version it reports, not by where it
+// is installed: the same version under another path is the same judge, and
+// an upgraded CLI is not.
+func TestClaudeCLIProvider_RecordsTheCLIVersionNotItsPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	describe := func(version string) meta.Judge {
+		t.Helper()
+		cli := newFakeClaudeCLI(t, "")
+		cli.version = version
+		cli.write(t, "", 0)
+		s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "sonnet", Effort: EffortLow})
+		require.NoError(t, err)
+		return s.Describe()
+	}
+
+	installed := describe("2.1.322 (Claude Code)")
+
+	assert.Equal(t, installed, describe("2.1.322 (Claude Code)"), "same version under another path")
+	assert.NotEqual(t, installed, describe("2.1.330 (Claude Code)"), "an upgraded CLI")
+	assert.Contains(t, installed.Invocation, "2.1.322 (Claude Code)")
+}
+
+func TestClaudeCLIProvider_FailsWithoutACLIToAskTheVersionOf(t *testing.T) {
+	_, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: filepath.Join(t.TempDir(), "no-claude-here"), Model: "sonnet", Effort: EffortLow})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--version")
+}
+
 func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")
@@ -147,11 +180,12 @@ func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
 type fakeClaudeCLI struct {
 	path      string
 	recordDir string
+	version   string
 }
 
 func newFakeClaudeCLI(t *testing.T, reply string) *fakeClaudeCLI {
 	t.Helper()
-	cli := &fakeClaudeCLI{recordDir: t.TempDir()}
+	cli := &fakeClaudeCLI{recordDir: t.TempDir(), version: "2.1.322 (Claude Code)"}
 	cli.path = filepath.Join(t.TempDir(), "claude")
 	envelope, err := json.Marshal(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": reply})
 	require.NoError(t, err)
@@ -170,6 +204,10 @@ func (c *fakeClaudeCLI) write(t *testing.T, stdout string, exitCode int) {
 	t.Helper()
 	record := func(name string) string { return filepath.Join(c.recordDir, name) }
 	script := `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "` + c.version + `"
+  exit 0
+fi
 printf '%s\0' "$@" > "` + record("args") + `"
 pwd -P > "` + record("cwd") + `"
 ls -A > "` + record("listing") + `"
@@ -287,4 +325,14 @@ func TestClaudeAPIProvider_SendsThePinnedModelAndEffortOnly(t *testing.T) {
 	assert.Equal(t, "user", messages[0].(map[string]any)["role"])
 	assert.Equal(t, "low", s.Describe().Effort)
 	assert.Contains(t, s.Describe().Invocation, "low")
+}
+
+// versionOnlyClaudeCLI is a stand-in claude binary for tests that build a CLI
+// judge without grading: it answers --version and fails anything else.
+func versionOnlyClaudeCLI(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "claude")
+	script := "#!/bin/sh\n[ \"$1\" = \"--version\" ] && echo \"2.1.322 (Claude Code)\" && exit 0\nexit 1\n"
+	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
+	return path
 }

@@ -332,7 +332,9 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   effort or thinking variable (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`). No settings,
   CLAUDE.md, MCP server, tool, skill or advisor reaches the grade, and the rubric goes in
   through `--system-prompt`. It signs in with the operator's claude.ai login (`--bare` would
-  need `ANTHROPIC_API_KEY`). The judge block's `invocation` records the exact command. The
+  need `ANTHROPIC_API_KEY`). The judge block's `invocation` records what `claude --version`
+  reports and the exact flags, not where the binary is installed, so `--resume` refuses a
+  file graded by another CLI version. The
   CLI still adds the date, the OS version, a `cc_version` billing block and an Agent SDK
   preamble ahead of the rubric, which the claude.ai login cannot turn off
   (`CLAUDE_CODE_SIMPLE` is `--bare`), so the two providers do not grade under one system

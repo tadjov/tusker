@@ -182,7 +182,7 @@ func TestParseEffort(t *testing.T) {
 func TestLLMDescribeNamesTheModelItWasGiven(t *testing.T) {
 	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
 		t.Run(string(provider), func(t *testing.T) {
-			s, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", Model: "claude-haiku-5-5", Effort: EffortLow})
+			s, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", CLIBinary: versionOnlyClaudeCLI(t), Model: "claude-haiku-5-5", Effort: EffortLow})
 			if err != nil {
 				t.Fatalf("NewLLMStrategy: %v", err)
 			}
@@ -209,7 +209,7 @@ func TestLLMDescribeNamesTheModelItWasGiven(t *testing.T) {
 
 // An omitted provider must still yield a usable judge rather than an error.
 func TestLLMDefaultProvider(t *testing.T) {
-	s, err := NewLLMStrategy(StrategyOptions{Model: "claude-haiku-5-5", Effort: EffortLow})
+	s, err := NewLLMStrategy(StrategyOptions{CLIBinary: versionOnlyClaudeCLI(t), Model: "claude-haiku-5-5", Effort: EffortLow})
 	if err != nil {
 		t.Fatalf("NewLLMStrategy: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestLLMDefaultProvider(t *testing.T) {
 // --model takes an alias; the judge block must record the expanded id, since an
 // alias would silently re-point at a different model later.
 func TestLLMModelAliasRecordedAsFullID(t *testing.T) {
-	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, Model: "sonnet", Effort: EffortLow})
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: versionOnlyClaudeCLI(t), Model: "sonnet", Effort: EffortLow})
 	if err != nil {
 		t.Fatalf("NewLLMStrategy: %v", err)
 	}
