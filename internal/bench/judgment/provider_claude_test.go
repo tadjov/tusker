@@ -59,7 +59,7 @@ func TestClaudeCLIProvider_GradesIsolatedAndRecordsItsInvocation(t *testing.T) {
 	assert.Empty(t, call.cwdListing, "nothing in the working directory for the CLI to discover")
 	assert.NoDirExists(t, call.cwd, "the working directory is removed after the call")
 
-	want := []string{"CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1", cli.path}
+	want := []string{"CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1", "CLAUDE_CODE_MAX_OUTPUT_TOKENS=<max-output-tokens>", cli.path}
 	for _, arg := range call.args {
 		switch arg {
 		case "":
@@ -96,6 +96,35 @@ func TestClaudeCLIProvider_RunsTheSameRequestFromTheSameDirectory(t *testing.T) 
 
 	assert.Equal(t, first, again)
 	assert.NotEqual(t, first, other)
+}
+
+// The parent's environment cannot change the effort, thinking or output
+// budget the judge block records: the CLI reads them from these variables
+// ahead of its flags.
+func TestClaudeCLIProvider_GradesUnderTheJudgesBudgetWhateverTheParentEnvSays(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	t.Setenv("CLAUDE_CODE_EFFORT_LEVEL", "max")
+	t.Setenv("CLAUDE_CODE_MAX_OUTPUT_TOKENS", "100")
+	t.Setenv("MAX_THINKING_TOKENS", "100")
+	t.Setenv("CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING", "1")
+	doc := GradingDoc{ID: uuid.New(), Title: "Climate summit opens in Belem"}
+	cli := newFakeClaudeCLI(t, `{"doc_id":"`+doc.ID.String()+`","grade":2}`)
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5", Effort: EffortLow})
+	require.NoError(t, err)
+
+	_, err = s.Grade(context.Background(), GradingQuery{ID: "q1", Text: "climate summit"}, doc)
+
+	require.NoError(t, err)
+	env := cli.call(t).env
+	budget := s.Describe().MaxOutputTokens
+	assert.GreaterOrEqual(t, budget, 16000, "room for thinking at every effort")
+	assert.Equal(t, strconv.Itoa(budget), env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
+	for _, overriding := range []string{"CLAUDE_CODE_EFFORT_LEVEL", "MAX_THINKING_TOKENS", "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING"} {
+		_, inherited := env[overriding]
+		assert.False(t, inherited, "%s reaches the CLI", overriding)
+	}
 }
 
 func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
@@ -145,6 +174,7 @@ printf '%s\0' "$@" > "` + record("args") + `"
 pwd -P > "` + record("cwd") + `"
 ls -A > "` + record("listing") + `"
 printf '%s' "${CLAUDE_CODE_DISABLE_ADVISOR_TOOL-unset}" > "` + record("advisor") + `"
+env > "` + record("env") + `"
 cat > "` + record("stdin") + `"
 cat <<'JSON'
 ` + stdout + `
@@ -159,6 +189,7 @@ type fakeCLICall struct {
 	cwd            string
 	cwdListing     string
 	disableAdvisor string
+	env            map[string]string
 	stdin          string
 }
 
@@ -178,6 +209,12 @@ func (c *fakeClaudeCLI) call(t *testing.T) fakeCLICall {
 	}
 	for _, a := range args {
 		call.args = append(call.args, string(a))
+	}
+	call.env = map[string]string{}
+	for _, line := range strings.Split(read("env"), "\n") {
+		if name, value, ok := strings.Cut(line, "="); ok {
+			call.env[name] = value
+		}
 	}
 	return call
 }
@@ -239,6 +276,7 @@ func TestClaudeAPIProvider_SendsThePinnedModelAndEffortOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, GradeRelevant, grade)
 	assert.Equal(t, "claude-sonnet-5-5", body["model"])
+	assert.InDelta(t, s.Describe().MaxOutputTokens, body["max_tokens"], 0, "the budget the judge block records")
 	assert.Equal(t, map[string]any{"effort": "low"}, body["output_config"])
 	for _, rejected := range []string{"temperature", "top_p", "top_k", "thinking", "fallbacks"} {
 		assert.NotContains(t, body, rejected)

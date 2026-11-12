@@ -320,12 +320,15 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
 - `--model` is required: a full model id, or `haiku`, `sonnet`, `opus` or `fable` for the
   current generation (`claude-sonnet-5-5` for `sonnet`). `--effort` sets how much the model
   thinks before it grades (`low` by default). The judge block records the resolved model,
-  the effort and the prompt version (`v3`).
+  the effort, the output budget (16,000 tokens a doc, 32,000 a batch, room for thinking at
+  any effort) and the prompt version (`v3`).
 - A reply without a grade, a null grade, or a refused request leaves the doc unjudged for
   `--resume` to retry. It never grades 0.
 - `claude-cli` runs `claude -p` from an empty temp directory with `--safe-mode
   --setting-sources "" --strict-mcp-config --tools "" --disable-slash-commands
-  --no-session-persistence` and `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`. No settings,
+  --no-session-persistence`, `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` and
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS` set to the judge's budget, and without any inherited
+  effort or thinking variable (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`). No settings,
   CLAUDE.md, MCP server, tool, skill or advisor reaches the grade, and the rubric goes in
   through `--system-prompt`. It signs in with the operator's claude.ai login (`--bare` would
   need `ANTHROPIC_API_KEY`). The judge block's `invocation` records the exact command. The

@@ -8,10 +8,11 @@ import (
 	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
-// Output budgets leave room for adaptive thinking before the JSON grades.
+// Output budgets leave room for adaptive thinking at any effort before the
+// JSON grades, and stay below what a request can send without streaming.
 const (
-	llmMaxOutputTokens      = 2048
-	llmBatchMaxOutputTokens = 8192
+	llmMaxOutputTokens      = 16000
+	llmBatchMaxOutputTokens = 32000
 )
 
 // LLMStrategy is the LLM-as-judge strategy. It owns the rubric, batching and
@@ -37,12 +38,14 @@ func (s *LLMStrategy) Name() string { return string(StrategyLLM) }
 // name a concrete model and the resume guard can catch a grader swap.
 func (s *LLMStrategy) Describe() meta.Judge {
 	return meta.Judge{
-		Strategy:      string(StrategyLLM),
-		Provider:      string(s.provider.Name()),
-		Model:         s.provider.Model(),
-		PromptVersion: PromptVersion,
-		Effort:        string(s.provider.Effort()),
-		Invocation:    s.provider.Invocation(),
+		Strategy:             string(StrategyLLM),
+		Provider:             string(s.provider.Name()),
+		Model:                s.provider.Model(),
+		PromptVersion:        PromptVersion,
+		Effort:               string(s.provider.Effort()),
+		MaxOutputTokens:      llmMaxOutputTokens,
+		BatchMaxOutputTokens: llmBatchMaxOutputTokens,
+		Invocation:           s.provider.Invocation(),
 	}
 }
 

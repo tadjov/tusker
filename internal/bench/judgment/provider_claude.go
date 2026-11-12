@@ -14,7 +14,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -119,8 +121,8 @@ func (p *claudeCLIProvider) Effort() Effort { return p.effort }
 
 func (p *claudeCLIProvider) Invocation() string {
 	args := p.args("<system-prompt>")
-	words := make([]string, 0, len(args)+2)
-	words = append(words, claudeCLIDisableAdvisor, p.binary)
+	words := make([]string, 0, len(args)+3)
+	words = append(words, claudeCLIDisableAdvisor, "CLAUDE_CODE_MAX_OUTPUT_TOKENS=<max-output-tokens>", p.binary)
 	for _, arg := range args {
 		if arg == "" {
 			arg = `""`
@@ -146,7 +148,7 @@ func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest)
 
 	cmd := exec.CommandContext(ctx, p.binary, p.args(req.System)...)
 	cmd.Dir = workDir
-	cmd.Env = append(os.Environ(), claudeCLIDisableAdvisor)
+	cmd.Env = claudeCLIEnv(req.MaxTokens)
 	cmd.Stdin = strings.NewReader(req.User)
 	out, err := cmd.Output()
 	if err != nil {
@@ -166,6 +168,26 @@ func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest)
 		return "", fmt.Errorf("%s reported an error: %s", p.binary, result.Result)
 	}
 	return result.Result, nil
+}
+
+// claudeCLIGradingOverrides are variables the CLI reads ahead of its flags to
+// change the effort, the thinking or the output budget a grade is made under.
+var claudeCLIGradingOverrides = []string{
+	"CLAUDE_CODE_EFFORT_LEVEL",
+	"CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+	"MAX_THINKING_TOKENS",
+	"CLAUDE_CODE_DISABLE_THINKING",
+	"CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",
+}
+
+// claudeCLIEnv is the parent's environment without the grading overrides,
+// with the advisor off and the judge's output budget.
+func claudeCLIEnv(maxOutputTokens int) []string {
+	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		name, _, _ := strings.Cut(kv, "=")
+		return slices.Contains(claudeCLIGradingOverrides, name)
+	})
+	return append(env, claudeCLIDisableAdvisor, "CLAUDE_CODE_MAX_OUTPUT_TOKENS="+strconv.Itoa(maxOutputTokens))
 }
 
 // requestWorkDir creates an empty directory named after req: the CLI tells the
@@ -221,7 +243,8 @@ func newClaudeAPIProvider(opts StrategyOptions) (LLMProvider, error) {
 		model:   model,
 		effort:  opts.Effort,
 		baseURL: base,
-		client:  &http.Client{Timeout: 60 * time.Second},
+		// Long enough for a reply that spends the whole output budget.
+		client: &http.Client{Timeout: 10 * time.Minute},
 	}, nil
 }
 

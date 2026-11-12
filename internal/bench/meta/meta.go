@@ -70,6 +70,10 @@ type Judge struct {
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
 	// Effort is the effort level an LLM judge's model graded at.
 	Effort string `yaml:"effort,omitempty" json:"effort,omitempty"`
+	// MaxOutputTokens and BatchMaxOutputTokens are an LLM judge's output budget
+	// for a request holding one doc and for a batch.
+	MaxOutputTokens      int `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"`
+	BatchMaxOutputTokens int `yaml:"batch_max_output_tokens,omitempty" json:"batch_max_output_tokens,omitempty"`
 	// Invocation is how an LLM judge reached its model: the exact command line,
 	// or the API version and effort.
 	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
