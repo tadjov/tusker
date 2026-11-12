@@ -197,11 +197,7 @@ func TestLLMJudge_RequestForADocIsTheSameWhereverThePoolListsIt(t *testing.T) {
 // --batch groups docs by a seeded shuffle of the query's pool: the same pool
 // and seed give the same batches in any pool order, and another seed others.
 func TestLLMJudge_BatchesComeFromASeededShuffleOfThePool(t *testing.T) {
-	titles := make([]string, 20)
-	for i := range titles {
-		titles[i] = fmt.Sprintf("Flood report %d", i)
-	}
-	articles := llmArticles(titles...)
+	articles := floodReports(20)
 	byEngine := pool.PoolEntry{QueryID: "q1", QueryText: "flood"}
 	for i, a := range articles {
 		engine := "pg"
@@ -213,26 +209,40 @@ func TestLLMJudge_BatchesComeFromASeededShuffleOfThePool(t *testing.T) {
 	reordered := byEngine
 	reordered.Docs = append(slices.Clone(byEngine.Docs[3:]), byEngine.Docs[:3]...)
 
-	batches := func(entry pool.PoolEntry, seed uint64) [][]uuid.UUID {
-		t.Helper()
-		provider := &fakeLLMProvider{grade: func(uuid.UUID) int { return GradeRelevant }}
-		_, err := llmRunner(provider, articles, RunnerConfig{BatchSize: 5, BatchSeed: seed}).Run(context.Background(), &pool.PoolFile{Queries: []pool.PoolEntry{entry}})
-		require.NoError(t, err)
-		var out [][]uuid.UUID
-		for _, req := range provider.requests() {
-			ids := docIDsIn(req.User)
-			slices.SortFunc(ids, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
-			out = append(out, ids)
-		}
-		slices.SortFunc(out, func(a, b []uuid.UUID) int { return strings.Compare(a[0].String(), b[0].String()) })
-		return out
-	}
-
-	seeded := batches(byEngine, 1)
+	seeded := llmBatches(t, articles, &pool.PoolFile{Queries: []pool.PoolEntry{byEngine}}, RunnerConfig{BatchSize: 5, BatchSeed: 1})
 	require.Len(t, seeded, 4)
-	assert.Equal(t, seeded, batches(byEngine, 1), "same pool and seed")
-	assert.Equal(t, seeded, batches(reordered, 1), "pool order and engines play no part")
-	assert.NotEqual(t, seeded, batches(byEngine, 2), "another seed")
+	assert.Equal(t, seeded, llmBatches(t, articles, &pool.PoolFile{Queries: []pool.PoolEntry{byEngine}}, RunnerConfig{BatchSize: 5, BatchSeed: 1}), "same pool and seed")
+	assert.Equal(t, seeded, llmBatches(t, articles, &pool.PoolFile{Queries: []pool.PoolEntry{reordered}}, RunnerConfig{BatchSize: 5, BatchSeed: 1}), "pool order and engines play no part")
+	assert.NotEqual(t, seeded, llmBatches(t, articles, &pool.PoolFile{Queries: []pool.PoolEntry{byEngine}}, RunnerConfig{BatchSize: 5, BatchSeed: 2}), "another seed")
+}
+
+// A resumed run, or one that cannot read every pooled article, grades each
+// remaining doc in what is left of the batch a fresh run puts it in, so it
+// never pairs docs a fresh run would not.
+func TestLLMJudge_ResumedBatchesAreWhatIsLeftOfTheFreshOnes(t *testing.T) {
+	articles := floodReports(20)
+	entry := pool.PoolEntry{QueryID: "q1", QueryText: "flood"}
+	for _, a := range articles {
+		entry.Docs = append(entry.Docs, pool.PooledDoc{DocID: a.ID})
+	}
+	pf := &pool.PoolFile{Queries: []pool.PoolEntry{entry}}
+	cfg := RunnerConfig{BatchSize: 5, BatchSeed: 1}
+	fresh := llmBatches(t, articles, pf, cfg)
+
+	prior := Entry{QueryID: "q1"}
+	for _, a := range articles[:7] {
+		prior.Docs = append(prior.Docs, GradedDoc{DocID: a.ID, Grade: GradeRelevant})
+	}
+	cfg.Existing = &File{Queries: []Entry{prior}}
+	readable := slices.Delete(slices.Clone(articles), 12, 13)
+	resumed := llmBatches(t, readable, pf, cfg)
+
+	require.NotEmpty(t, resumed)
+	for _, batch := range resumed {
+		assert.True(t, slices.ContainsFunc(fresh, func(whole []uuid.UUID) bool {
+			return !slices.ContainsFunc(batch, func(id uuid.UUID) bool { return !slices.Contains(whole, id) })
+		}), "resumed batch %v is part of no fresh batch", batch)
+	}
 }
 
 // The judge block names the batch size and seed a batched run graded with,
@@ -381,5 +391,33 @@ func gradesOf(jf *File) map[uuid.UUID]int {
 			out[d.DocID] = d.Grade
 		}
 	}
+	return out
+}
+
+// floodReports are n articles with fixed ids, so a seeded shuffle of them
+// comes out the same on every run.
+func floodReports(n int) []document.Article {
+	out := make([]document.Article, n)
+	for i := range out {
+		title := fmt.Sprintf("Flood report %d", i)
+		out[i] = document.Article{ID: uuid.NewSHA1(uuid.NameSpaceURL, []byte(title)), Title: title}
+	}
+	return out
+}
+
+// llmBatches grades pf through an LLM judge and returns the doc ids of each
+// request, each sorted, the requests ordered by their first id.
+func llmBatches(t *testing.T, articles []document.Article, pf *pool.PoolFile, cfg RunnerConfig) [][]uuid.UUID {
+	t.Helper()
+	provider := &fakeLLMProvider{grade: func(uuid.UUID) int { return GradeRelevant }}
+	_, err := llmRunner(provider, articles, cfg).Run(context.Background(), pf)
+	require.NoError(t, err)
+	var out [][]uuid.UUID
+	for _, req := range provider.requests() {
+		ids := docIDsIn(req.User)
+		slices.SortFunc(ids, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
+		out = append(out, ids)
+	}
+	slices.SortFunc(out, func(a, b []uuid.UUID) int { return strings.Compare(a[0].String(), b[0].String()) })
 	return out
 }

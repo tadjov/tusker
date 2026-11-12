@@ -56,8 +56,9 @@ type RunnerConfig struct {
 	// BatchSize overrides the strategy's preferred batch size. 0 = use preferred.
 	// A PoolStrategy refuses any other value.
 	BatchSize int
-	// BatchSeed shuffles each query's pool into batches, so a doc's batch
-	// depends on the pool's docs and the seed, never on pool order.
+	// BatchSeed shuffles each query's whole pool into batches, so a doc's batch
+	// depends on the pool's docs and the seed, never on pool order, on what an
+	// earlier run graded or on which articles could be read.
 	BatchSeed uint64
 	// Existing is an optional prior judgment file. Entries already present
 	// will be skipped on this run (resume support).
@@ -231,7 +232,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 	if ps, ok := r.cfg.Strategy.(PoolStrategy); ok {
 		gradedByID, err = r.gradeWholePool(ctx, ps, q, entry.Docs)
 	} else {
-		gradedByID, err = r.gradeTodo(ctx, q, todo)
+		gradedByID, err = r.gradeTodo(ctx, q, entry.Docs, todo)
 	}
 	if err != nil && !FailsWholeQuery(err) {
 		return ge, prog, err
@@ -252,12 +253,12 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 	return ge, prog, err
 }
 
-func (r *Runner) gradeTodo(ctx context.Context, q GradingQuery, todo []pool.PooledDoc) (map[uuid.UUID]int, error) {
+func (r *Runner) gradeTodo(ctx context.Context, q GradingQuery, pooled, todo []pool.PooledDoc) (map[uuid.UUID]int, error) {
 	docs, err := r.fetchDocs(ctx, todo)
 	if err != nil {
 		return nil, fmt.Errorf("fetch docs: %w", err)
 	}
-	return r.dispatch(ctx, q, todo, docs)
+	return r.dispatch(ctx, q, pooled, todo, docs)
 }
 
 // gradeWholePool grades every pooled doc, graded before or not, and has no
@@ -302,7 +303,7 @@ func (r *Runner) gradeWholePool(ctx context.Context, ps PoolStrategy, q GradingQ
 // Per-doc path uses bounded concurrency. Batched path uses sequential calls
 // because each call is already a large LLM operation — parallelising buys
 // little and increases the rate-limit risk.
-func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.PooledDoc, docs map[uuid.UUID]GradingDoc) (map[uuid.UUID]int, error) {
+func (r *Runner) dispatch(ctx context.Context, q GradingQuery, pooled, todo []pool.PooledDoc, docs map[uuid.UUID]GradingDoc) (map[uuid.UUID]int, error) {
 	gradedByID := make(map[uuid.UUID]int, len(todo))
 
 	gradables := make([]GradingDoc, 0, len(todo))
@@ -317,7 +318,7 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 	}
 
 	if bs, ok := r.cfg.Strategy.(BatchStrategy); ok && r.cfg.batchSize() > 1 {
-		if err := r.runBatched(ctx, bs, q, gradables, gradedByID); err != nil {
+		if err := r.runBatched(ctx, bs, q, poolBatches(pooled, gradables, r.cfg.BatchSeed, r.cfg.batchSize()), gradedByID); err != nil {
 			return nil, err
 		}
 	} else if err := r.runPerDoc(ctx, r.cfg.Strategy.(DocStrategy), q, gradables, gradedByID); err != nil {
@@ -329,8 +330,7 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 	return gradedByID, nil
 }
 
-func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuery, gradables []GradingDoc, into map[uuid.UUID]int) error {
-	batches := chunk(shuffleByID(gradables, r.cfg.BatchSeed), r.cfg.batchSize())
+func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuery, batches [][]GradingDoc, into map[uuid.UUID]int) error {
 	for i, batch := range batches {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -462,14 +462,34 @@ func toGradingDoc(a document.Article) GradingDoc {
 	}
 }
 
-// shuffleByID sorts docs by id before shuffling, so the order depends on which
-// docs there are and the seed alone.
-func shuffleByID(docs []GradingDoc, seed uint64) []GradingDoc {
-	out := slices.Clone(docs)
-	slices.SortFunc(out, func(a, b GradingDoc) int { return bytes.Compare(a.ID[:], b.ID[:]) })
+// poolBatches cuts a seeded shuffle of the whole pool into batches and keeps
+// in each only the gradables, so a resumed run never pairs docs a full run
+// would not.
+func poolBatches(pooled []pool.PooledDoc, gradables []GradingDoc, seed uint64, size int) [][]GradingDoc {
+	byID := make(map[uuid.UUID]GradingDoc, len(gradables))
+	for _, d := range gradables {
+		byID[d.ID] = d
+	}
+	ids := make([]uuid.UUID, len(pooled))
+	for i, pd := range pooled {
+		ids[i] = pd.DocID
+	}
+	slices.SortFunc(ids, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
 	rng := rand.New(rand.NewPCG(seed, 0))
-	rng.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
-	return out
+	rng.Shuffle(len(ids), func(i, j int) { ids[i], ids[j] = ids[j], ids[i] })
+	var batches [][]GradingDoc
+	for _, chunkIDs := range chunk(ids, size) {
+		var batch []GradingDoc
+		for _, id := range chunkIDs {
+			if d, ok := byID[id]; ok {
+				batch = append(batch, d)
+			}
+		}
+		if len(batch) > 0 {
+			batches = append(batches, batch)
+		}
+	}
+	return batches
 }
 
 func chunk[T any](xs []T, size int) [][]T {
