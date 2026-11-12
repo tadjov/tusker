@@ -7,6 +7,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tadjov/tusker/internal/bench/version"
@@ -93,15 +96,39 @@ type Batching struct {
 	Seed uint64 `yaml:"seed" json:"seed"`
 }
 
+func (b Batching) String() string { return fmt.Sprintf("size %d seed %d", b.Size, b.Seed) }
+
 // Equal reports whether two judges would produce comparable grades. Used by the
 // resume guard: any difference means the existing file and the current run
 // disagree on who is grading, so appending would corrupt the set.
-func (j Judge) Equal(other Judge) bool {
-	if (j.Batching == nil) != (other.Batching == nil) || j.Batching != nil && *j.Batching != *other.Batching {
-		return false
+func (j Judge) Equal(other Judge) bool { return len(j.Differences(other)) == 0 }
+
+// Differences names, by its YAML key, each field in which other differs from
+// j, with both values: `effort: was "low", now "high"`.
+func (j Judge) Differences(other Judge) []string {
+	was, now := reflect.ValueOf(j), reflect.ValueOf(other)
+	var out []string
+	for i := range was.NumField() {
+		if reflect.DeepEqual(was.Field(i).Interface(), now.Field(i).Interface()) {
+			continue
+		}
+		key, _, _ := strings.Cut(was.Type().Field(i).Tag.Get("yaml"), ",")
+		out = append(out, fmt.Sprintf("%s: was %s, now %s", key, judgeValue(was.Field(i)), judgeValue(now.Field(i))))
 	}
-	j.Batching, other.Batching = nil, nil
-	return j == other
+	return out
+}
+
+func judgeValue(v reflect.Value) string {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return "none"
+		}
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.String {
+		return strconv.Quote(v.String())
+	}
+	return fmt.Sprint(v.Interface())
 }
 
 // String renders the judge for CLI output, e.g. "llm-cli/claude

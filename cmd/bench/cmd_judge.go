@@ -316,24 +316,17 @@ func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error
 // disagree on who is grading, and appending would corrupt the set.
 func checkResumeCompat(prior *judgment.File, now meta.Judge) error {
 	was := prior.Judge()
-	if (was == meta.Judge{}) || was.Equal(now) {
+	if (was == meta.Judge{}) {
+		return nil
+	}
+	differences := was.Differences(now)
+	if len(differences) == 0 {
 		return nil
 	}
 	return fmt.Errorf(
-		"--resume judge mismatch: existing file was graded by %q, this run uses %q\n"+
+		"--resume judge mismatch: the existing file was graded by another judge (%s)\n"+
 			"  • re-run without --resume to re-grade cleanly under the new judge",
-		judgeWithVersions(was), judgeWithVersions(now))
-}
-
-func judgeWithVersions(j meta.Judge) string {
-	s := j.String()
-	if j.PromptVersion != "" {
-		s += " prompt " + j.PromptVersion
-	}
-	if j.RubricVersion != "" {
-		s += " rubric " + j.RubricVersion
-	}
-	return s
+		strings.Join(differences, "; "))
 }
 
 // buildVectorStore builds the vector/hybrid judges' store: query vectors from

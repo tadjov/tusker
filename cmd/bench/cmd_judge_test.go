@@ -115,7 +115,7 @@ func TestCheckResumeCompat_InvocationMismatch(t *testing.T) {
 	err := checkResumeCompat(fileWith(was), now)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "judge mismatch")
+	assert.Contains(t, err.Error(), `invocation: was "claude -p --model claude-haiku-5-5", now "claude -p --safe-mode --model claude-haiku-5-5"`)
 }
 
 // Two runs batched alike are the same judge, however each holds its
@@ -140,7 +140,7 @@ func TestCheckResumeCompat_BatchSeedMismatch(t *testing.T) {
 	err := checkResumeCompat(fileWith(was), now)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "judge mismatch")
+	assert.Contains(t, err.Error(), "batching: was size 10 seed 1, now size 10 seed 2")
 }
 
 // The same model at another effort grades differently, so it is not the same
@@ -154,7 +154,8 @@ func TestCheckResumeCompat_EffortMismatch(t *testing.T) {
 	err := checkResumeCompat(fileWith(was), now)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "judge mismatch")
+	assert.Contains(t, err.Error(), `effort: was "low", now "high"`)
+	assert.NotContains(t, err.Error(), "model:", "only the fields that differ")
 }
 
 // Legacy annotations (flat strategy/judge_model, no judge block) normalize to a
@@ -661,7 +662,7 @@ func TestCheckResumeCompat_RefusesTheDeterministicJudgesV1Rubric(t *testing.T) {
 			err := checkResumeCompat(fileWith(v1), strategy.Describe())
 
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "rubric v1")
+			assert.Contains(t, err.Error(), `rubric_version: was "v1", now "v2"`)
 		})
 	}
 }
@@ -808,7 +809,7 @@ func TestCheckResumeCompat_RefusesTheLLMJudgesV2Prompt(t *testing.T) {
 	err = checkResumeCompat(fileWith(v2), strategy.Describe())
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "prompt v2")
+	assert.Contains(t, err.Error(), `prompt_version: was "v2", now "v3"`)
 }
 
 // The LLM judge's zeros come from the shared phrase, boolean and filter gates,
@@ -826,5 +827,5 @@ func TestCheckResumeCompat_RefusesAnLLMFileGradedUnderOtherGates(t *testing.T) {
 	err = checkResumeCompat(fileWith(was), now)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "judge mismatch")
+	assert.Contains(t, err.Error(), `gate_version: was "v0", now "v1"`)
 }
