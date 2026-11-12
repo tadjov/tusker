@@ -813,22 +813,29 @@ func TestCheckResumeCompat_RefusesTheLLMJudgesV2Prompt(t *testing.T) {
 	assert.Contains(t, err.Error(), fmt.Sprintf("prompt_version: was %q, now %q", "v2", judgment.PromptVersion))
 }
 
-// The LLM judge's zeros come from the shared phrase, boolean and filter gates,
-// so a file graded under other gates cannot be resumed.
-func TestCheckResumeCompat_RefusesAnLLMFileGradedUnderOtherGates(t *testing.T) {
-	strategy, err := judgment.NewLLMStrategy(judgment.StrategyOptions{
+// The keyword, bm25 and LLM judges grade through the shared phrase, boolean
+// and filter gates, so each names the gates' version, and a file graded under
+// other gates cannot be resumed.
+func TestCheckResumeCompat_RefusesAFileGradedUnderOtherGates(t *testing.T) {
+	llm, err := judgment.NewLLMStrategy(judgment.StrategyOptions{
 		Provider: judgment.ProviderClaudeCLI, CLIBinary: gradingClaudeCLI(t), Model: "sonnet", Effort: judgment.EffortLow,
 	})
 	require.NoError(t, err)
-	now := strategy.Describe()
-	require.NotEmpty(t, now.GateVersion, "the LLM judge block names its gates")
-	was := now
-	was.GateVersion = "v0"
+	gates := llm.Describe().GateVersion
+	require.NotEmpty(t, gates, "the LLM judge block names its gates")
+	for _, strategy := range []judgment.Strategy{judgment.NewKeywordStrategy(), judgment.NewBM25Strategy(), llm} {
+		t.Run(strategy.Name(), func(t *testing.T) {
+			now := strategy.Describe()
+			assert.Equal(t, gates, now.GateVersion, "one gate version for every judge that gates")
+			was := now
+			was.GateVersion = "v0"
 
-	err = checkResumeCompat(fileWith(was), now)
+			err := checkResumeCompat(fileWith(was), now)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), fmt.Sprintf("gate_version: was %q, now %q", "v0", now.GateVersion))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), fmt.Sprintf("gate_version: was %q, now %q", "v0", now.GateVersion))
+		})
+	}
 }
 
 // An empty --model, as an unset make variable gives, fails naming the flag

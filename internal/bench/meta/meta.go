@@ -81,8 +81,8 @@ type Judge struct {
 	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
 	// Batching is set when an LLM judge grades several docs per request.
 	Batching *Batching `yaml:"batching,omitempty" json:"batching,omitempty"`
-	// GateVersion names the phrase, boolean and filter gates an LLM judge's
-	// zeros come from.
+	// GateVersion names the phrase, boolean and filter gates the keyword, bm25
+	// and LLM judges' zeros come from.
 	GateVersion string `yaml:"gate_version,omitempty" json:"gate_version,omitempty"`
 	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
 	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`

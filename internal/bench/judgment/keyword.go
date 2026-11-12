@@ -19,7 +19,7 @@ func NewKeywordStrategy() *KeywordStrategy { return &KeywordStrategy{} }
 func (KeywordStrategy) Name() string { return string(StrategyKeyword) }
 
 func (KeywordStrategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyKeyword), RubricVersion: keywordRubricVersion}
+	return meta.Judge{Strategy: string(StrategyKeyword), RubricVersion: keywordRubricVersion, GateVersion: gateVersion}
 }
 
 // Grade gives 0 to a document the query's filters or category gate refuse.

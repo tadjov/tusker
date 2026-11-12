@@ -30,7 +30,7 @@ func NewBM25Strategy() *BM25Strategy { return &BM25Strategy{} }
 func (BM25Strategy) Name() string { return string(StrategyBM25) }
 
 func (BM25Strategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyBM25), RubricVersion: bm25RubricVersion}
+	return meta.Judge{Strategy: string(StrategyBM25), RubricVersion: bm25RubricVersion, GateVersion: gateVersion}
 }
 
 // GradePool gives 0 to a document the query's filters or category gate refuse;

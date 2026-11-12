@@ -307,9 +307,9 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
 - Phrase, boolean and filter constraints are decided in code before the model is asked. A
   doc that breaks the query's phrase, its boolean expression or a declared filter grades 0
   without a request, through the same gates `keyword` and `bm25` use. The prompt tells the
-  model the doc satisfies the constraint and asks how well it answers the query. The judge
-  block records the gates' `gate_version`, so `--resume` refuses a file graded under other
-  gates.
+  model the doc satisfies the constraint and asks how well it answers the query. The
+  `keyword`, `bm25` and LLM judge blocks all record the gates' `gate_version`, so `--resume`
+  refuses a file graded under other gates and a gate change needs one bump.
 - The prompt carries the query's `text` exactly as the pool stores it. `description` never
   reaches the model.
 - One doc per request by default, so what a request holds depends on the query and the doc
