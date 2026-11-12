@@ -122,13 +122,13 @@ func TestJudgmentSetNameRoundTrips(t *testing.T) {
 
 func TestResolveClaudeModelAliases(t *testing.T) {
 	tests := []struct{ in, want string }{
-		{in: "", want: DefaultJudgeModel},
-		{in: "haiku", want: DefaultJudgeModel},
-		{in: "HAIKU", want: DefaultJudgeModel},
-		{in: "sonnet", want: "claude-sonnet-5"},
-		{in: "opus", want: "claude-opus-5"},
+		{in: "haiku", want: "claude-haiku-5-5"},
+		{in: "HAIKU", want: "claude-haiku-5-5"},
+		{in: "sonnet", want: "claude-sonnet-5-5"},
+		{in: "opus", want: "claude-opus-5-5"},
+		{in: "fable", want: "claude-fable-5-2"},
 		// A full id passes through untouched.
-		{in: "claude-haiku-4-5-20251001", want: "claude-haiku-4-5-20251001"},
+		{in: "claude-sonnet-5", want: "claude-sonnet-5"},
 		{in: "some-future-model", want: "some-future-model"},
 	}
 
@@ -139,10 +139,24 @@ func TestResolveClaudeModelAliases(t *testing.T) {
 	}
 }
 
-func TestLLMDescribeDefaultsToHaiku(t *testing.T) {
+// No Claude judge picks a model for the operator: one left unnamed fails,
+// naming the flag that names it.
+func TestLLMRequiresAModel(t *testing.T) {
 	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
 		t.Run(string(provider), func(t *testing.T) {
-			s, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key"})
+			_, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key"})
+
+			if err == nil || !strings.Contains(err.Error(), "--model") {
+				t.Errorf("NewLLMStrategy without a model: err = %v, want one naming --model", err)
+			}
+		})
+	}
+}
+
+func TestLLMDescribeNamesTheModelItWasGiven(t *testing.T) {
+	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
+		t.Run(string(provider), func(t *testing.T) {
+			s, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", Model: "claude-haiku-5-5"})
 			if err != nil {
 				t.Fatalf("NewLLMStrategy: %v", err)
 			}
@@ -154,8 +168,8 @@ func TestLLMDescribeDefaultsToHaiku(t *testing.T) {
 			if got.Provider != string(provider) {
 				t.Errorf("Provider = %q, want %q", got.Provider, provider)
 			}
-			if got.Model != DefaultJudgeModel {
-				t.Errorf("Model = %q, want %q", got.Model, DefaultJudgeModel)
+			if got.Model != "claude-haiku-5-5" {
+				t.Errorf("Model = %q, want %q", got.Model, "claude-haiku-5-5")
 			}
 			if got.PromptVersion != PromptVersion {
 				t.Errorf("PromptVersion = %q, want %q", got.PromptVersion, PromptVersion)
@@ -166,7 +180,7 @@ func TestLLMDescribeDefaultsToHaiku(t *testing.T) {
 
 // An omitted provider must still yield a usable judge rather than an error.
 func TestLLMDefaultProvider(t *testing.T) {
-	s, err := NewLLMStrategy(StrategyOptions{})
+	s, err := NewLLMStrategy(StrategyOptions{Model: "claude-haiku-5-5"})
 	if err != nil {
 		t.Fatalf("NewLLMStrategy: %v", err)
 	}
@@ -184,8 +198,8 @@ func TestLLMModelAliasRecordedAsFullID(t *testing.T) {
 		t.Fatalf("NewLLMStrategy: %v", err)
 	}
 
-	if got := s.Describe().Model; got != "claude-sonnet-5" {
-		t.Errorf("Model = %q, want %q", got, "claude-sonnet-5")
+	if got := s.Describe().Model; got != "claude-sonnet-5-5" {
+		t.Errorf("Model = %q, want %q", got, "claude-sonnet-5-5")
 	}
 }
 

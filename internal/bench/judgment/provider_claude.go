@@ -15,20 +15,15 @@ import (
 	"time"
 )
 
-// DefaultJudgeModel is the model every Claude-backed judge uses when --model is
-// omitted. Haiku is the default across both transports: grading is a short,
-// well-specified classification task, so the cheapest capable model is the right
-// baseline, and sharing one default keeps CLI- and API-graded qrels comparable.
-const DefaultJudgeModel = "claude-haiku-4-5-20251001"
-
-// claudeModelAliases lets --model take a short name. The alias is expanded at
-// construction so the judge block always records a concrete model id — an
-// alias would silently re-point at a different model later.
+// claudeModelAliases lets --model take a short name for the current
+// generation. The alias is expanded at construction so the judge block always
+// records a concrete model id — an alias would silently re-point at a
+// different model later.
 var claudeModelAliases = map[string]string{
-	"haiku":  DefaultJudgeModel,
-	"sonnet": "claude-sonnet-5",
-	"opus":   "claude-opus-5",
-	"fable":  "claude-fable-5",
+	"haiku":  "claude-haiku-5-5",
+	"sonnet": "claude-sonnet-5-5",
+	"opus":   "claude-opus-5-5",
+	"fable":  "claude-fable-5-2",
 }
 
 const (
@@ -38,12 +33,18 @@ const (
 	claudeAPIVersion     = "2023-06-01"
 )
 
-// resolveClaudeModel expands an alias, defaults an empty value, and otherwise
-// passes a full model id through untouched.
-func resolveClaudeModel(model string) string {
+// requireClaudeModel resolves the model provider grades with; there is no
+// default, so grades always come from a model the operator chose.
+func requireClaudeModel(provider Provider, model string) (string, error) {
 	if model == "" {
-		return DefaultJudgeModel
+		return "", fmt.Errorf("provider %s needs --model to name the judge model, e.g. --model sonnet", provider)
 	}
+	return resolveClaudeModel(model), nil
+}
+
+// resolveClaudeModel expands an alias and passes a full model id through
+// untouched.
+func resolveClaudeModel(model string) string {
 	if full, ok := claudeModelAliases[strings.ToLower(model)]; ok {
 		return full
 	}
@@ -83,15 +84,16 @@ type claudeCLIProvider struct {
 	model  string
 }
 
-// The error is always nil; the signature is fixed by the providers registry.
-//
-//nolint:unparam
 func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
+	model, err := requireClaudeModel(ProviderClaudeCLI, opts.Model)
+	if err != nil {
+		return nil, err
+	}
 	bin := opts.CLIBinary
 	if bin == "" {
 		bin = claudeDefaultBinary
 	}
-	return &claudeCLIProvider{binary: bin, model: resolveClaudeModel(opts.Model)}, nil
+	return &claudeCLIProvider{binary: bin, model: model}, nil
 }
 
 func (p *claudeCLIProvider) Name() Provider { return ProviderClaudeCLI }
@@ -163,6 +165,10 @@ type claudeAPIProvider struct {
 }
 
 func newClaudeAPIProvider(opts StrategyOptions) (LLMProvider, error) {
+	model, err := requireClaudeModel(ProviderClaudeAPI, opts.Model)
+	if err != nil {
+		return nil, err
+	}
 	key := opts.APIKey
 	if key == "" {
 		key = os.Getenv(claudeAPIKeyEnv)
@@ -176,7 +182,7 @@ func newClaudeAPIProvider(opts StrategyOptions) (LLMProvider, error) {
 	}
 	return &claudeAPIProvider{
 		apiKey:  key,
-		model:   resolveClaudeModel(opts.Model),
+		model:   model,
 		baseURL: base,
 		client:  &http.Client{Timeout: 60 * time.Second},
 	}, nil

@@ -72,8 +72,8 @@ The llm strategy is vendor-neutral: --provider names the endpoint
 (` + strings.Join(judgment.KnownProviders(), ", ") + `), and registering a new
 provider is all it takes to add Codex or ChatGPT.
 
---model accepts a full model id or a shorthand (` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `)
-and defaults to ` + judgment.DefaultJudgeModel + `. The resolved id, the
+--model is required for llm: a full model id or a shorthand for the current
+generation (` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `). The resolved id, the
 provider and the prompt version are recorded in the artifact's judge block, so
 qrels always name the grader that produced them.
 
@@ -87,7 +87,7 @@ graded. bm25, vector and hybrid grade the whole pool at once, so they skip only
 queries that are fully graded and regrade the rest whole. Atomic writes mean
 Ctrl-C is safe.`,
 		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy keyword
-  bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli
+  bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli --model sonnet
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
   bench judge --pool /tmp/p.yaml --strategy keyword --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
@@ -110,7 +110,7 @@ Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.provider, "provider", string(judgment.DefaultProvider),
 		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
 	cmd.Flags().StringVar(&f.model, "model", "",
-		"Judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); default "+judgment.DefaultJudgeModel)
+		"Judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); required for --strategy llm")
 	cmd.Flags().StringVar(&f.apiBaseURL, "api-base", "", "Anthropic API base URL")
 	cmd.Flags().StringVar(&f.cliBinary, "cli-binary", "", "claude CLI binary path")
 	cmd.Flags().StringVar(&f.embeddingBase, "embedding-base", "", "Embedding endpoint for vector/hybrid (or EMBEDDING_BASE_URL)")

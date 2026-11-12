@@ -47,14 +47,14 @@ func fileWith(j meta.Judge) *judgment.File {
 func TestCheckResumeCompat_FileWithoutJudgeResumes(t *testing.T) {
 	// A file carrying no judge block at all has nothing to contradict.
 	prior := &judgment.File{}
-	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
+	now := llmJudge("claude-cli", "claude-haiku-5-5")
 
 	err := checkResumeCompat(prior, now)
 	assert.NoError(t, err, "file with no judge block should be resumable")
 }
 
 func TestCheckResumeCompat_IdenticalJudgeMatches(t *testing.T) {
-	j := llmJudge("claude-cli", judgment.DefaultJudgeModel)
+	j := llmJudge("claude-cli", "claude-haiku-5-5")
 
 	err := checkResumeCompat(fileWith(j), j)
 	assert.NoError(t, err)
@@ -62,7 +62,7 @@ func TestCheckResumeCompat_IdenticalJudgeMatches(t *testing.T) {
 
 func TestCheckResumeCompat_StrategyMismatch(t *testing.T) {
 	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyKeyword)})
-	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
+	now := llmJudge("claude-cli", "claude-haiku-5-5")
 
 	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
@@ -93,10 +93,10 @@ func TestCheckResumeCompat_PromptVersionMismatch(t *testing.T) {
 	prior := fileWith(meta.Judge{
 		Strategy:      string(judgment.StrategyLLM),
 		Provider:      "claude-cli",
-		Model:         judgment.DefaultJudgeModel,
+		Model:         "claude-haiku-5-5",
 		PromptVersion: "v0-old",
 	})
-	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
+	now := llmJudge("claude-cli", "claude-haiku-5-5")
 
 	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
@@ -141,7 +141,7 @@ func TestCheckResumeCompat_LegacyFileRefusesResume(t *testing.T) {
 		LegacyJudgeModel: "claude",
 	}}
 	prior.Meta.Normalize()
-	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
+	now := llmJudge("claude-cli", "claude-haiku-5-5")
 
 	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
@@ -708,4 +708,30 @@ printf '{"type":"result","is_error":false,"result":"[%s]"}\n' "$entries"
 	path := filepath.Join(t.TempDir(), "claude")
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 	return path
+}
+
+// An LLM judge grades with the model the operator names: without --model the
+// command fails naming the flag, before it grades or writes anything.
+func TestJudge_LLMWithoutModelFailsNamingTheFlag(t *testing.T) {
+	var reached atomic.Bool
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Store(true)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer api.Close()
+	noCLI := filepath.Join(t.TempDir(), "no-claude-here")
+
+	for _, provider := range []string{"claude-api", "claude-cli"} {
+		t.Run(provider, func(t *testing.T) {
+			fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+			err := fx.judge(t, "--strategy", "llm", "--provider", provider,
+				"--api-key", "test-key", "--api-base", api.URL, "--cli-binary", noCLI)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "--model")
+			assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations."+provider+".yaml"))
+		})
+	}
+	assert.False(t, reached.Load(), "no request reaches the API")
 }
