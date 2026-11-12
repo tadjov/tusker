@@ -763,3 +763,19 @@ func TestJudge_LLMUnknownEffortFailsNamingTheFlag(t *testing.T) {
 	assert.Contains(t, err.Error(), "--effort")
 	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.claude-cli.yaml"))
 }
+
+// The LLM judge's v3 prompt grades the query text under one rubric, so a file
+// its v2 prompt graded cannot be resumed.
+func TestCheckResumeCompat_RefusesTheLLMJudgesV2Prompt(t *testing.T) {
+	strategy, err := judgment.NewLLMStrategy(judgment.StrategyOptions{
+		Provider: judgment.ProviderClaudeCLI, Model: "sonnet", Effort: judgment.EffortLow,
+	})
+	require.NoError(t, err)
+	v2 := strategy.Describe()
+	v2.PromptVersion = "v2"
+
+	err = checkResumeCompat(fileWith(v2), strategy.Describe())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "prompt v2")
+}

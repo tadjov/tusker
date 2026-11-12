@@ -133,8 +133,10 @@ func truncateRunes(s string, max int) string {
 // bench judge embeds this in the annotations meta block so you can tell which
 // prompt version produced a given judgment file and catch rubric drift on resume.
 //
-// v2 added the per-category constraints.
-const PromptVersion = "v2"
+// v2 added the per-category constraints. v3 sends the query's text, notes the
+// constraint the code already checked, and shares one rubric and content cut
+// between single and batched requests.
+const PromptVersion = "v3"
 
 // BuildBatchGradingPrompt is the user payload for grading docs in one request:
 // candidates numbered [1]..[N], answered as a JSON array in input order.
