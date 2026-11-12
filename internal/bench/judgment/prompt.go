@@ -17,13 +17,11 @@ const (
 When in doubt between two grades, pick the lower one.
 Grade what the article is ABOUT, not whether the query terms appear in the text.`
 
-	phraseConstraint = `This is a PHRASE query. Grade 0 unless the article contains the exact phrase, ` +
-		`with the words adjacent and in order. An article on the same topic that does not contain the phrase is grade 0, ` +
-		`however relevant it otherwise seems.`
+	phraseSatisfied = `This is a phrase query, and the article contains the phrase. ` +
+		`Grade how well it answers the query.`
 
-	booleanConstraint = `This is a BOOLEAN query. Grade 0 unless the article satisfies the whole expression, ` +
-		`including every negated term: an article containing a NOT term is grade 0. ` +
-		`Topical overlap alone does not satisfy the expression.`
+	booleanSatisfied = `This is a boolean query, and the article satisfies the whole expression, negated terms included. ` +
+		`Grade how well it answers the query.`
 
 	systemPrompt = `You are an information retrieval relevance judge. ` +
 		`You grade news articles against a user's search intent. ` +
@@ -37,7 +35,7 @@ func BuildGradingPrompt(q GradingQuery, doc GradingDoc) string {
 	sb.WriteString("Grade this news article's relevance to the query.\n\n")
 	sb.WriteString(gradingScale)
 	sb.WriteString("\n\n")
-	if c := constraintFor(q.Category); c != "" {
+	if c := constraintNote(q.Category); c != "" {
 		sb.WriteString(c)
 		sb.WriteString("\n\n")
 	}
@@ -54,12 +52,14 @@ func BuildGradingPrompt(q GradingQuery, doc GradingDoc) string {
 	return sb.String()
 }
 
-func constraintFor(category suite.Category) string {
+// constraintNote tells the model the article already satisfies the query's
+// category constraint, which the code checked before asking.
+func constraintNote(category suite.Category) string {
 	switch category {
 	case suite.CategoryPhrase:
-		return phraseConstraint
+		return phraseSatisfied
 	case suite.CategoryBoolean:
-		return booleanConstraint
+		return booleanSatisfied
 	default:
 		return ""
 	}
@@ -125,7 +125,7 @@ const batchContentSnippetRunes = 600
 //   - the model is asked for a JSON array of N entries in input order
 func BuildBatchGradingPrompt(q GradingQuery, docs []GradingDoc) string {
 	var sb strings.Builder
-	if c := constraintFor(q.Category); c != "" {
+	if c := constraintNote(q.Category); c != "" {
 		sb.WriteString(c)
 		sb.WriteString("\n\n")
 	}

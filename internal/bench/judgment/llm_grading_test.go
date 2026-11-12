@@ -3,6 +3,7 @@ package judgment
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -10,6 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/bench/suite"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 // The model grades the query a user would type, exactly as stored; the suite
@@ -33,6 +37,78 @@ func TestLLMJudge_PromptCarriesTheQueryTextAndNeverItsDescription(t *testing.T) 
 		assert.Contains(t, req.User, "Query: "+q.Text)
 		assert.NotContains(t, req.User, q.Description)
 		assert.NotContains(t, req.System, q.Description)
+	}
+}
+
+// Phrase, boolean and filter constraints are decided in code: a doc that
+// breaks one grades 0 without a request, whatever the model would say, and
+// the model grades only the docs that keep it.
+func TestLLMJudge_GradesADocBreakingTheQuerysConstraintZeroWithoutAsking(t *testing.T) {
+	tests := []struct {
+		name     string
+		entry    pool.PoolEntry
+		admitted document.Article
+		broken   document.Article
+	}{
+		{
+			name:     "phrase",
+			entry:    pool.PoolEntry{QueryText: "solar power", Category: suite.CategoryPhrase},
+			admitted: llmArticle("Solar power plant opens", "reuters.com"),
+			broken:   llmArticle("Power prices squeeze solar firms", "reuters.com"),
+		},
+		{
+			name:     "not",
+			entry:    pool.PoolEntry{QueryText: "climate AND NOT politics", Category: suite.CategoryBoolean},
+			admitted: llmArticle("Climate scientists publish ice data", "reuters.com"),
+			broken:   llmArticle("Climate politics heats up in parliament", "reuters.com"),
+		},
+		{
+			name:     "declared filter",
+			entry:    pool.PoolEntry{QueryText: "climate", Category: suite.CategoryKeyword, Filters: suite.Filters{PublisherDomain: "reuters.com"}},
+			admitted: llmArticle("Climate summit opens", "reuters.com"),
+			broken:   llmArticle("Climate summit opens", "bbc.co.uk"),
+		},
+	}
+	for _, tt := range tests {
+		for _, batch := range []int{0, 2} {
+			t.Run(fmt.Sprintf("%s/batch %d", tt.name, batch), func(t *testing.T) {
+				entry := tt.entry
+				entry.QueryID = "q1"
+				entry.Docs = []pool.PooledDoc{{DocID: tt.broken.ID}, {DocID: tt.admitted.ID}}
+				provider := &fakeLLMProvider{grade: func(uuid.UUID) int { return GradeHighly }}
+
+				jf, err := llmRunner(provider, []document.Article{tt.admitted, tt.broken}, batch).
+					Run(context.Background(), &pool.PoolFile{Queries: []pool.PoolEntry{entry}})
+
+				require.NoError(t, err)
+				grades := gradesOf(jf)
+				assert.Equal(t, GradeNotRelev, grades[tt.broken.ID])
+				assert.Equal(t, GradeHighly, grades[tt.admitted.ID])
+				for _, req := range provider.requests() {
+					assert.NotContains(t, req.User, tt.broken.ID.String(), "no request for a doc the constraint refuses")
+				}
+			})
+		}
+	}
+}
+
+// A boolean text that does not parse leaves its constraint undecided, so the
+// query stays unjudged rather than graded by the model alone.
+func TestLLMJudge_LeavesAQueryWithAnUnparsableBooleanUnjudged(t *testing.T) {
+	for _, batch := range []int{0, 2} {
+		t.Run(fmt.Sprintf("batch %d", batch), func(t *testing.T) {
+			doc := llmArticle("Climate politics heats up", "reuters.com")
+			entry := pool.PoolEntry{QueryID: "q1", QueryText: "climate AND (politics", Category: suite.CategoryBoolean, Docs: []pool.PooledDoc{{DocID: doc.ID}}}
+			provider := &fakeLLMProvider{grade: func(uuid.UUID) int { return GradeHighly }}
+
+			jf, err := llmRunner(provider, []document.Article{doc}, batch).
+				Run(context.Background(), &pool.PoolFile{Queries: []pool.PoolEntry{entry}})
+
+			var unparsed *BooleanTextError
+			require.ErrorAs(t, err, &unparsed)
+			assert.Equal(t, GradeUnjudged, gradesOf(jf)[doc.ID])
+			assert.Empty(t, provider.requests())
+		})
 	}
 }
 
@@ -96,4 +172,30 @@ func docIDsIn(prompt string) []uuid.UUID {
 		}
 	}
 	return ids
+}
+
+func llmArticle(title, publisherDomain string) document.Article {
+	return document.Article{ID: uuid.New(), Title: title, PublisherDomain: publisherDomain}
+}
+
+func llmRunner(provider LLMProvider, articles []document.Article, batchSize int) *Runner {
+	store := map[uuid.UUID]document.Article{}
+	for _, a := range articles {
+		store[a.ID] = a
+	}
+	return NewRunner(RunnerConfig{
+		Strategy:  &LLMStrategy{provider: provider},
+		Reader:    &stubStorageReader{articles: store},
+		BatchSize: batchSize,
+	})
+}
+
+func gradesOf(jf *File) map[uuid.UUID]int {
+	out := map[uuid.UUID]int{}
+	for _, qe := range jf.Queries {
+		for _, d := range qe.Docs {
+			out[d.DocID] = d.Grade
+		}
+	}
+	return out
 }

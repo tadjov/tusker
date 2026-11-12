@@ -315,11 +315,12 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 		histo := map[int]int{}
 		results, err := bs.GradeBatch(ctx, q, batch)
 
-		// A width mismatch is a property of the models, not of this batch, so
-		// every remaining document would fail the same way. Retrying per-doc
-		// would bury it and still write a complete annotations file.
+		// A width mismatch or an unusable query is a property of the models or
+		// the query, not of this batch, so every remaining document would fail
+		// the same way. Retrying per-doc would bury it and still write a
+		// complete annotations file.
 		var width *VectorWidthError
-		if errors.As(err, &width) {
+		if errors.As(err, &width) || FailsWholeQuery(err) {
 			return err
 		}
 

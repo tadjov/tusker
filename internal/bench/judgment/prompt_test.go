@@ -92,16 +92,18 @@ func TestParseBatchGradeJSON(t *testing.T) {
 	})
 }
 
-func TestConstraintFor(t *testing.T) {
-	if got := constraintFor("phrase"); !strings.Contains(got, "exact phrase") {
-		t.Errorf("phrase constraint = %q, want it to demand the exact phrase", got)
+// The code has already checked the constraint, so the note tells the model it
+// holds rather than asking the model to check it.
+func TestConstraintNote(t *testing.T) {
+	if got := constraintNote("phrase"); !strings.Contains(got, "contains the phrase") || strings.Contains(got, "Grade 0") {
+		t.Errorf("phrase note = %q, want it to say the article contains the phrase", got)
 	}
-	if got := constraintFor("boolean"); !strings.Contains(got, "negated") {
-		t.Errorf("boolean constraint = %q, want it to mention negated terms", got)
+	if got := constraintNote("boolean"); !strings.Contains(got, "satisfies the whole expression") || strings.Contains(got, "Grade 0") {
+		t.Errorf("boolean note = %q, want it to say the article satisfies the expression", got)
 	}
 	for _, c := range []suite.Category{"", suite.CategoryKeyword, suite.CategoryMultiField, suite.CategorySingleField} {
-		if got := constraintFor(c); got != "" {
-			t.Errorf("constraintFor(%q) = %q, want empty", c, got)
+		if got := constraintNote(c); got != "" {
+			t.Errorf("constraintNote(%q) = %q, want empty", c, got)
 		}
 	}
 }
@@ -110,12 +112,12 @@ func TestBuildGradingPrompt_IncludesCategoryConstraint(t *testing.T) {
 	doc := GradingDoc{ID: uuid.New(), Title: "Markets slide"}
 
 	phrase := BuildGradingPrompt(GradingQuery{ID: "q", Text: "stock market crash", Category: "phrase"}, doc)
-	if !strings.Contains(phrase, "PHRASE query") {
-		t.Error("phrase query prompt should carry the phrase constraint")
+	if !strings.Contains(phrase, "phrase query") {
+		t.Error("phrase query prompt should carry the phrase note")
 	}
 
 	keyword := BuildGradingPrompt(GradingQuery{ID: "q", Text: "stock market crash", Category: "keyword"}, doc)
-	if strings.Contains(keyword, "PHRASE query") {
+	if strings.Contains(keyword, "phrase query") {
 		t.Error("keyword query prompt should grade on topic alone")
 	}
 }
@@ -124,12 +126,12 @@ func TestBuildBatchGradingPrompt_IncludesCategoryConstraint(t *testing.T) {
 	docs := []GradingDoc{{ID: uuid.New(), Title: "Tech news"}}
 
 	boolean := BuildBatchGradingPrompt(GradingQuery{ID: "q", Text: "technology NOT crypto", Category: "boolean"}, docs)
-	if !strings.Contains(boolean, "BOOLEAN query") {
-		t.Error("boolean query batch prompt should carry the boolean constraint")
+	if !strings.Contains(boolean, "boolean query") {
+		t.Error("boolean query batch prompt should carry the boolean note")
 	}
 
 	untagged := BuildBatchGradingPrompt(GradingQuery{ID: "q", Text: "technology"}, docs)
-	if strings.Contains(untagged, "BOOLEAN query") {
-		t.Error("untagged query batch prompt should carry no constraint")
+	if strings.Contains(untagged, "boolean query") {
+		t.Error("untagged query batch prompt should carry no note")
 	}
 }

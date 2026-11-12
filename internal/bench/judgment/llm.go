@@ -44,7 +44,16 @@ func (s *LLMStrategy) Describe() meta.Judge {
 	}
 }
 
+// Grade gives 0 without a request to a doc the query's filters or category
+// gate refuse; the model grades only how well the rest answer the query.
 func (s *LLMStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
+	tq, err := readTermQuery(q)
+	if err != nil {
+		return GradeUnjudged, err
+	}
+	if !tq.admits(analyzeDoc(doc)) {
+		return GradeNotRelev, nil
+	}
 	text, err := s.provider.Complete(ctx, CompletionRequest{
 		System:    systemPrompt,
 		User:      BuildGradingPrompt(q, doc),
@@ -62,31 +71,45 @@ func (s *LLMStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc)
 
 func (s *LLMStrategy) PreferredBatchSize() int { return s.provider.PreferredBatchSize() }
 
-// GradeBatch implements BatchStrategy. One provider call per batch; the caller
-// (judgment.Runner) chunks and handles docs that come back missing or malformed.
+// GradeBatch implements BatchStrategy, gating docs as Grade does: one provider
+// call per batch for the docs the gate admits, none when it admits none.
 func (s *LLMStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
-	if len(docs) == 0 {
-		return nil, nil
+	tq, err := readTermQuery(q)
+	if err != nil {
+		return nil, err
+	}
+	var refused []GradedDoc
+	var admitted []GradingDoc
+	for _, d := range docs {
+		if tq.admits(analyzeDoc(d)) {
+			admitted = append(admitted, d)
+		} else {
+			refused = append(refused, GradedDoc{DocID: d.ID, Grade: GradeNotRelev})
+		}
+	}
+	if len(admitted) == 0 {
+		return refused, nil
 	}
 	text, err := s.provider.Complete(ctx, CompletionRequest{
 		System:    BatchSystemPrompt,
-		User:      BuildBatchGradingPrompt(q, docs),
+		User:      BuildBatchGradingPrompt(q, admitted),
 		MaxTokens: llmBatchMaxOutputTokens,
 	})
 	if err != nil {
 		return nil, err
 	}
-	parsed, missing, err := ParseBatchGradeJSON(text, docs)
+	parsed, missing, err := ParseBatchGradeJSON(text, admitted)
 	if err != nil {
 		return nil, fmt.Errorf("batch parse: %w", err)
 	}
+	graded := append(refused, parsed...)
 	if len(missing) > 0 {
 		// Surface partial-success: the Runner retries the missing IDs
 		// individually via Grade(). Returning nil error here would discard the
 		// parsed entries, so wrap as a typed sentinel.
-		return parsed, &PartialBatchError{Missing: missing, Got: len(parsed), Want: len(docs)}
+		return graded, &PartialBatchError{Missing: missing, Got: len(graded), Want: len(docs)}
 	}
-	return parsed, nil
+	return graded, nil
 }
 
 // PartialBatchError lets the runner distinguish "the LLM returned only part of
