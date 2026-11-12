@@ -29,6 +29,7 @@ import (
 	"github.com/tadjov/tusker/internal/storage/queryvectors"
 	"github.com/tadjov/tusker/internal/types/document"
 	pkgtesting "github.com/tadjov/tusker/pkg/testing"
+	"gopkg.in/yaml.v3"
 )
 
 func llmJudge(provider, model string) meta.Judge {
@@ -117,13 +118,24 @@ func TestCheckResumeCompat_InvocationMismatch(t *testing.T) {
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
 
+// Two runs batched alike are the same judge, however each holds its
+// batching.
+func TestCheckResumeCompat_SameBatchingMatches(t *testing.T) {
+	was := llmJudge("claude-cli", "claude-haiku-5-5")
+	was.Batching = &meta.Batching{Size: 10, Seed: 0}
+	now := was
+	now.Batching = &meta.Batching{Size: 10, Seed: 0}
+
+	assert.NoError(t, checkResumeCompat(fileWith(was), now))
+}
+
 // Batches under another seed pair docs differently, so their grades are not
 // the same judge's.
 func TestCheckResumeCompat_BatchSeedMismatch(t *testing.T) {
 	was := llmJudge("claude-cli", "claude-haiku-5-5")
-	was.BatchSize, was.BatchSeed = 10, 1
+	was.Batching = &meta.Batching{Size: 10, Seed: 1}
 	now := was
-	now.BatchSeed = 2
+	now.Batching = &meta.Batching{Size: 10, Seed: 2}
 
 	err := checkResumeCompat(fileWith(was), now)
 
@@ -676,20 +688,21 @@ func TestJudge_UnparsableBooleanTextFailsAfterWritingTheFile(t *testing.T) {
 }
 
 // The judge block names the effort of an LLM run, and the batch size and seed
-// of a batched one, which the default of one doc per request has none of.
+// of a batched one, seed 0 included, which the default of one doc per request
+// has none of.
 func TestJudge_LLMJudgeBlockRecordsItsEffortAndBatching(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")
 	}
 	tests := []struct {
-		name      string
-		args      []string
-		batchSize int
-		batchSeed uint64
-		effort    string
+		name     string
+		args     []string
+		batching map[string]any
+		effort   string
 	}{
 		{name: "one doc per request", effort: "low"},
-		{name: "batched", args: []string{"--batch", "2", "--seed", "7"}, batchSize: 2, batchSeed: 7, effort: "low"},
+		{name: "batched", args: []string{"--batch", "2", "--seed", "7"}, batching: map[string]any{"size": 2, "seed": 7}, effort: "low"},
+		{name: "batched under seed 0", args: []string{"--batch", "2", "--seed", "0"}, batching: map[string]any{"size": 2, "seed": 0}, effort: "low"},
 		{name: "another effort", args: []string{"--effort", "medium"}, effort: "medium"},
 	}
 	for _, tt := range tests {
@@ -700,13 +713,27 @@ func TestJudge_LLMJudgeBlockRecordsItsEffortAndBatching(t *testing.T) {
 			require.NoError(t, fx.judge(t, append(args, tt.args...)...))
 
 			jf := fx.annotations(t, "claude-cli")
-			assert.Equal(t, tt.batchSize, jf.Judge().BatchSize)
-			assert.Equal(t, tt.batchSeed, jf.Judge().BatchSeed)
+			batching, _ := writtenJudge(t, fx, "claude-cli")["batching"].(map[string]any)
+			assert.Equal(t, tt.batching, batching)
 			assert.Equal(t, tt.effort, jf.Judge().Effort)
 			assert.Contains(t, jf.Judge().Invocation, "--model claude-haiku-5-5")
 			assert.NotContains(t, slices.Collect(maps.Values(gradesByQuery(jf)["q1"])), judgment.GradeUnjudged)
 		})
 	}
+}
+
+// writtenJudge is the judge block exactly as the annotations file holds it.
+func writtenJudge(t *testing.T, fx *judgeFixture, set string) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(fx.track, "trec", "annotations."+set+".yaml"))
+	require.NoError(t, err)
+	var file struct {
+		Meta struct {
+			Judge map[string]any `yaml:"judge"`
+		} `yaml:"meta"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &file))
+	return file.Meta.Judge
 }
 
 // gradingClaudeCLI is a stand-in claude binary that grades 2 every doc id its

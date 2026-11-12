@@ -77,10 +77,8 @@ type Judge struct {
 	// Invocation is how an LLM judge reached its model: the exact command line,
 	// or the API version and effort.
 	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
-	// BatchSize and BatchSeed are set when an LLM judge grades several docs
-	// per request: how many, and the seed that shuffled the pool into batches.
-	BatchSize int    `yaml:"batch_size,omitempty" json:"batch_size,omitempty"`
-	BatchSeed uint64 `yaml:"batch_seed,omitempty" json:"batch_seed,omitempty"`
+	// Batching is set when an LLM judge grades several docs per request.
+	Batching *Batching `yaml:"batching,omitempty" json:"batching,omitempty"`
 	// GateVersion names the phrase, boolean and filter gates an LLM judge's
 	// zeros come from.
 	GateVersion string `yaml:"gate_version,omitempty" json:"gate_version,omitempty"`
@@ -88,10 +86,23 @@ type Judge struct {
 	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }
 
+// Batching is how many docs an LLM judge put in one request, and the seed that
+// shuffled each query's pool into those batches.
+type Batching struct {
+	Size int    `yaml:"size" json:"size"`
+	Seed uint64 `yaml:"seed" json:"seed"`
+}
+
 // Equal reports whether two judges would produce comparable grades. Used by the
 // resume guard: any difference means the existing file and the current run
 // disagree on who is grading, so appending would corrupt the set.
-func (j Judge) Equal(other Judge) bool { return j == other }
+func (j Judge) Equal(other Judge) bool {
+	if (j.Batching == nil) != (other.Batching == nil) || j.Batching != nil && *j.Batching != *other.Batching {
+		return false
+	}
+	j.Batching, other.Batching = nil, nil
+	return j == other
+}
 
 // String renders the judge for CLI output, e.g. "llm-cli/claude
 // claude-haiku-4-5-20251001" or plain "keyword".

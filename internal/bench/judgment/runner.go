@@ -77,7 +77,7 @@ type RunnerConfig struct {
 func (c RunnerConfig) Judge() meta.Judge {
 	judge := c.Strategy.Describe()
 	if size := c.batchSize(); size > 1 {
-		judge.BatchSize, judge.BatchSeed = size, c.BatchSeed
+		judge.Batching = &meta.Batching{Size: size, Seed: c.BatchSeed}
 	}
 	return judge
 }

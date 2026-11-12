@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/meta"
 	"github.com/tadjov/tusker/internal/bench/pool"
 	"github.com/tadjov/tusker/internal/bench/suite"
 	"github.com/tadjov/tusker/internal/types/document"
@@ -253,10 +254,8 @@ func TestRunnerConfig_JudgeRecordsBatching(t *testing.T) {
 	perDoc := RunnerConfig{Strategy: llm, BatchSeed: 7}.Judge()
 	batched := RunnerConfig{Strategy: llm, BatchSize: 5, BatchSeed: 7}.Judge()
 
-	assert.Zero(t, perDoc.BatchSize)
-	assert.Zero(t, perDoc.BatchSeed)
-	assert.Equal(t, 5, batched.BatchSize)
-	assert.Equal(t, uint64(7), batched.BatchSeed)
+	assert.Nil(t, perDoc.Batching)
+	assert.Equal(t, &meta.Batching{Size: 5, Seed: 7}, batched.Batching)
 	assert.Equal(t, llm.Describe().Model, batched.Model)
 }
 

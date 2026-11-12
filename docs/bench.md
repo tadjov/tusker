@@ -317,7 +317,7 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   is byte-identical; `claude-cli` adds its own blocks, below. `--batch N` cuts a shuffle of
   the query's whole pool, seeded by `--seed` (default 1), into batches of N. A resumed run,
   or one that cannot read every pooled article, sends what is left of those same batches.
-  The judge block then records `batch_size` and `batch_seed`.
+  The judge block then records both under `batching` (`size`, `seed`), seed 0 included.
 - Every request carries one rubric and shows each doc's title and description in full and
   its content up to 1,744 characters, the length of the median cc-news article.
 - `--model` is required: a full model id, or `haiku`, `sonnet`, `opus` or `fable` for the
