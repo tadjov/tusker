@@ -250,6 +250,44 @@ func TestRunnerConfig_JudgeRecordsBatching(t *testing.T) {
 	assert.Equal(t, llm.Describe().Model, batched.Model)
 }
 
+// An answer without a grade, or with a null one, leaves the doc unjudged for
+// a retry, never graded 0.
+func TestLLMJudge_LeavesADocWithoutAGradeUnjudged(t *testing.T) {
+	tests := []struct {
+		name  string
+		batch int
+		reply func(missing, graded uuid.UUID, req CompletionRequest) string
+	}{
+		{name: "relevance instead of grade", batch: 2, reply: func(missing, graded uuid.UUID, req CompletionRequest) string {
+			if strings.Contains(req.User, "JSON array") {
+				return `[{"doc_id":"` + missing.String() + `","relevance":3},{"doc_id":"` + graded.String() + `","grade":2}]`
+			}
+			return `{"doc_id":"` + missing.String() + `","relevance":3}`
+		}},
+		{name: "null grade, one doc per request", reply: func(missing, graded uuid.UUID, req CompletionRequest) string {
+			if strings.Contains(req.User, missing.String()) {
+				return `{"doc_id":"` + missing.String() + `","grade":null}`
+			}
+			return `{"doc_id":"` + graded.String() + `","grade":2}`
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			articles := llmArticles("Floods reach Belgrade", "Sava rises")
+			missing, graded := articles[0].ID, articles[1].ID
+			entry := pool.PoolEntry{QueryID: "q1", QueryText: "floods", Docs: []pool.PooledDoc{{DocID: missing}, {DocID: graded}}}
+			provider := &fakeLLMProvider{reply: func(req CompletionRequest) string { return tt.reply(missing, graded, req) }}
+
+			jf, err := llmRunner(provider, articles, RunnerConfig{BatchSize: tt.batch}).
+				Run(context.Background(), &pool.PoolFile{Queries: []pool.PoolEntry{entry}})
+
+			require.NoError(t, err)
+			assert.Equal(t, GradeUnjudged, gradesOf(jf)[missing])
+			assert.Equal(t, GradeRelevant, gradesOf(jf)[graded])
+		})
+	}
+}
+
 // fakeLLMProvider grades every doc a request names with grade(doc), answering
 // a batch request with an array and a single-doc request with an object.
 type fakeLLMProvider struct {

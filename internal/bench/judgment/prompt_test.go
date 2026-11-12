@@ -79,6 +79,18 @@ func TestParseBatchGradeJSON(t *testing.T) {
 		assert.Len(t, missing, 2)
 	})
 
+	t.Run("an entry without a grade is missing, not 0", func(t *testing.T) {
+		raw := `[
+		  {"doc_id":"` + d1.ID.String() + `","relevance":3},
+		  {"doc_id":"` + d2.ID.String() + `","grade":null},
+		  {"doc_id":"` + d3.ID.String() + `","grade":0}
+		]`
+		parsed, missing, err := ParseBatchGradeJSON(raw, expected)
+		require.NoError(t, err)
+		assert.Equal(t, []GradedDoc{{DocID: d3.ID, Grade: 0}}, parsed)
+		assert.ElementsMatch(t, []uuid.UUID{d1.ID, d2.ID}, missing)
+	})
+
 	t.Run("no array at all", func(t *testing.T) {
 		_, missing, err := ParseBatchGradeJSON("Sorry, I cannot grade these.", expected)
 		require.Error(t, err)

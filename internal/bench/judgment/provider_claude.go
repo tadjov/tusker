@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -232,6 +233,14 @@ func (p *claudeAPIProvider) Complete(ctx context.Context, cr CompletionRequest) 
 	if mr.Error != nil {
 		return "", fmt.Errorf("api error %s: %s", mr.Error.Type, mr.Error.Message)
 	}
+	if mr.StopReason == "refusal" {
+		var category string
+		if mr.StopDetails != nil {
+			category = mr.StopDetails.Category
+		}
+		slog.Warn("judge model refused the request", "model", p.model, "category", category)
+		return "", fmt.Errorf("%s refused the request (category %q)", p.model, category)
+	}
 	if len(mr.Content) == 0 {
 		return "", fmt.Errorf("api response has no content")
 	}
@@ -255,6 +264,10 @@ type messagesResponse struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"content"`
+	StopReason  string `json:"stop_reason"`
+	StopDetails *struct {
+		Category string `json:"category"`
+	} `json:"stop_details"`
 	Error *struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`

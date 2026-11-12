@@ -82,9 +82,11 @@ func constraintNote(category suite.Category) string {
 	}
 }
 
+// gradeResponse holds Grade as a pointer so a missing or null grade stays
+// distinguishable from grade 0.
 type gradeResponse struct {
 	DocID string `json:"doc_id"`
-	Grade int    `json:"grade"`
+	Grade *int   `json:"grade"`
 }
 
 // ParseGradeJSON extracts the {"doc_id","grade"} object from a raw LLM
@@ -100,10 +102,13 @@ func ParseGradeJSON(raw string, expectedDocID string) (int, error) {
 	if resp.DocID != expectedDocID {
 		return 0, fmt.Errorf("doc_id mismatch: got %q, expected %q", resp.DocID, expectedDocID)
 	}
-	if resp.Grade < 0 || resp.Grade > 3 {
-		return 0, fmt.Errorf("grade %d out of range [0,3]", resp.Grade)
+	if resp.Grade == nil {
+		return 0, fmt.Errorf("doc %s has no grade (body: %q)", expectedDocID, body)
 	}
-	return resp.Grade, nil
+	if *resp.Grade < 0 || *resp.Grade > 3 {
+		return 0, fmt.Errorf("grade %d out of range [0,3]", *resp.Grade)
+	}
+	return *resp.Grade, nil
 }
 
 func isolateJSON(s string) string {
@@ -169,10 +174,10 @@ func ParseBatchGradeJSON(raw string, expected []GradingDoc) (parsed []GradedDoc,
 
 	byID := make(map[string]int, len(entries))
 	for _, e := range entries {
-		if e.Grade < 0 || e.Grade > 3 {
+		if e.Grade == nil || *e.Grade < 0 || *e.Grade > 3 {
 			continue
 		}
-		byID[e.DocID] = e.Grade
+		byID[e.DocID] = *e.Grade
 	}
 
 	parsed = make([]GradedDoc, 0, len(expected))

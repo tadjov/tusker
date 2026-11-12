@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,6 +16,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tadjov/tusker/internal/bench/pool"
+	"github.com/tadjov/tusker/internal/types/document"
 )
 
 // The claude CLI grades from an empty directory of its own, with the
@@ -160,4 +164,27 @@ func (c fakeCLICall) flag(t *testing.T, name string) string {
 	}
 	t.Fatalf("flag %s with a value not in %q", name, c.args)
 	return ""
+}
+
+// A refused request has no grade to give, whatever text came before the
+// refusal: the doc stays unjudged for a retry, never graded 0.
+func TestClaudeAPIProvider_LeavesARefusedDocUnjudged(t *testing.T) {
+	doc := document.Article{ID: uuid.New(), Title: "Gunmen attack a village"}
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		partial, err := json.Marshal(`{"doc_id":"` + doc.ID.String() + `","grade":0}`)
+		require.NoError(t, err)
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"type":"message","role":"assistant","content":[{"type":"text","text":` + string(partial) + `}],` +
+			`"stop_reason":"refusal","stop_details":{"type":"refusal","category":"general_harms","explanation":"declined"}}`))
+	}))
+	defer api.Close()
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeAPI, APIKey: "test-key", APIBaseURL: api.URL, Model: "claude-sonnet-5-5"})
+	require.NoError(t, err)
+	entry := pool.PoolEntry{QueryID: "q1", QueryText: "village attack", Docs: []pool.PooledDoc{{DocID: doc.ID}}}
+
+	jf, err := NewRunner(RunnerConfig{Strategy: s, Reader: &stubStorageReader{articles: map[uuid.UUID]document.Article{doc.ID: doc}}}).
+		Run(context.Background(), &pool.PoolFile{Queries: []pool.PoolEntry{entry}})
+
+	require.NoError(t, err)
+	assert.Equal(t, GradeUnjudged, gradesOf(jf)[doc.ID])
 }
