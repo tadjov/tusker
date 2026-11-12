@@ -783,3 +783,21 @@ func TestCheckResumeCompat_RefusesTheLLMJudgesV2Prompt(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "prompt v2")
 }
+
+// The LLM judge's zeros come from the shared phrase, boolean and filter gates,
+// so a file graded under other gates cannot be resumed.
+func TestCheckResumeCompat_RefusesAnLLMFileGradedUnderOtherGates(t *testing.T) {
+	strategy, err := judgment.NewLLMStrategy(judgment.StrategyOptions{
+		Provider: judgment.ProviderClaudeCLI, CLIBinary: gradingClaudeCLI(t), Model: "sonnet", Effort: judgment.EffortLow,
+	})
+	require.NoError(t, err)
+	now := strategy.Describe()
+	require.NotEmpty(t, now.GateVersion, "the LLM judge block names its gates")
+	was := now
+	was.GateVersion = "v0"
+
+	err = checkResumeCompat(fileWith(was), now)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "judge mismatch")
+}

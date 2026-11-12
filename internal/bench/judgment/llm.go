@@ -42,6 +42,7 @@ func (s *LLMStrategy) Describe() meta.Judge {
 		Provider:             string(s.provider.Name()),
 		Model:                s.provider.Model(),
 		PromptVersion:        PromptVersion,
+		GateVersion:          gateVersion,
 		Effort:               string(s.provider.Effort()),
 		MaxOutputTokens:      llmMaxOutputTokens,
 		BatchMaxOutputTokens: llmBatchMaxOutputTokens,

@@ -81,6 +81,9 @@ type Judge struct {
 	// per request: how many, and the seed that shuffled the pool into batches.
 	BatchSize int    `yaml:"batch_size,omitempty" json:"batch_size,omitempty"`
 	BatchSeed uint64 `yaml:"batch_seed,omitempty" json:"batch_seed,omitempty"`
+	// GateVersion names the phrase, boolean and filter gates an LLM judge's
+	// zeros come from.
+	GateVersion string `yaml:"gate_version,omitempty" json:"gate_version,omitempty"`
 	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
 	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }
