@@ -129,7 +129,6 @@ func TestResolveClaudeModelAliases(t *testing.T) {
 		{in: "fable", want: "claude-fable-5-2"},
 		// A full id passes through untouched.
 		{in: "claude-sonnet-5", want: "claude-sonnet-5"},
-		{in: "some-future-model", want: "some-future-model"},
 	}
 
 	for _, tc := range tests {

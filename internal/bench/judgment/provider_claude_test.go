@@ -255,6 +255,35 @@ func TestClaudeCLIProvider_RunsAnotherModelOrEffortFromAnotherDirectory(t *testi
 	assert.NotEqual(t, sonnet, gradeFrom("sonnet", EffortHigh), "another effort")
 }
 
+// --model takes an alias or a lowercase claude- id the CLI answers under as
+// is. Anything else would be recorded under an id the CLI does not report, so
+// every grade it paid for would be discarded.
+func TestClaudeProviders_TakeOnlyModelIDsTheCLIAnswersUnder(t *testing.T) {
+	accepted := map[string]string{
+		"sonnet":                    "claude-sonnet-5-5",
+		"HAIKU":                     "claude-haiku-5-5",
+		"claude-sonnet-5-5":         "claude-sonnet-5-5",
+		"claude-haiku-4-5-20251001": "claude-haiku-4-5-20251001",
+	}
+	refused := []string{"sonnet[1m]", "claude-sonnet-5-5[1m]", "opusplan", "Claude-Sonnet-5-5", "some-future-model"}
+	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
+		for model, want := range accepted {
+			t.Run(string(provider)+"/accepts "+model, func(t *testing.T) {
+				s, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", CLIBinary: versionOnlyClaudeCLI(t), Model: model, Effort: EffortLow})
+				require.NoError(t, err)
+				assert.Equal(t, want, s.Describe().Model)
+			})
+		}
+		for _, model := range refused {
+			t.Run(string(provider)+"/refuses "+model, func(t *testing.T) {
+				_, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", CLIBinary: versionOnlyClaudeCLI(t), Model: model, Effort: EffortLow})
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "--model")
+			})
+		}
+	}
+}
+
 func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")

@@ -321,8 +321,9 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   seed 0 included.
 - Every request carries one rubric and shows each doc's title and description in full and
   its content up to 1,744 characters, the length of the median cc-news article.
-- `--model` is required: a full model id, or `haiku`, `sonnet`, `opus` or `fable` for the
-  current generation (`claude-sonnet-5-5` for `sonnet`). `--effort` sets how much the model
+- `--model` is required: a lowercase `claude-` model id, or `haiku`, `sonnet`, `opus` or
+  `fable` for the current generation (`claude-sonnet-5-5` for `sonnet`). Ids the CLI would
+  answer under another name (`sonnet[1m]`, `opusplan`, `Claude-Sonnet-5-5`) are refused. `--effort` sets how much the model
   thinks before it grades (`low` by default). The judge block records the resolved model,
   the effort, the output budget (16,000 tokens a doc, room for thinking at any effort; a
   batch's 20,000 sits under `batching`, below the ~21,333 a request may ask for without

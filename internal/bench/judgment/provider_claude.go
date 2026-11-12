@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -38,13 +39,22 @@ const (
 	claudeAPIVersion     = "2023-06-01"
 )
 
+// claudeModelID is an id the CLI answers under as given: lowercase and without
+// a suffix such as [1m], which the CLI strips before it reports the model.
+var claudeModelID = regexp.MustCompile(`^claude-[a-z0-9-]+$`)
+
 // requireClaudeModel resolves the model provider grades with; there is no
 // default, so grades always come from a model the operator chose.
 func requireClaudeModel(provider Provider, model string) (string, error) {
 	if model == "" {
 		return "", fmt.Errorf("provider %s needs --model to name the judge model, e.g. --model sonnet", provider)
 	}
-	return resolveClaudeModel(model), nil
+	resolved := resolveClaudeModel(model)
+	if !claudeModelID.MatchString(resolved) {
+		return "", fmt.Errorf("provider %s: --model %q is neither an alias (%s) nor a lowercase claude- model id",
+			provider, model, strings.Join(ClaudeModelAliases(), ", "))
+	}
+	return resolved, nil
 }
 
 // requireEffort refuses an unset effort: the model's default would grade at a
