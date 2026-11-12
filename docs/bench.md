@@ -323,8 +323,9 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   thinks before it grades (`low` by default). The judge block records the resolved model,
   the effort, the output budget (16,000 tokens a doc, 32,000 a batch, room for thinking at
   any effort) and the prompt version (`v3`).
-- A reply without a grade, a null grade, or a refused request leaves the doc unjudged for
-  `--resume` to retry. It never grades 0.
+- A reply without a grade, a null grade, a refused request, or a `claude-cli` answer whose
+  `modelUsage` names any model but the pinned one leaves the doc unjudged for `--resume` to
+  retry. It never grades 0.
 - `claude-cli` runs `claude -p` from an empty temp directory with `--safe-mode
   --setting-sources "" --strict-mcp-config --tools "" --disable-slash-commands
   --no-session-persistence`, `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` and

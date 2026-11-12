@@ -160,6 +160,39 @@ func TestClaudeCLIProvider_FailsWithoutACLIToAskTheVersionOf(t *testing.T) {
 	assert.Contains(t, err.Error(), "--version")
 }
 
+// A grade counts only when the pinned model made it: an answer the CLI got
+// from any other model leaves the doc unjudged.
+func TestClaudeCLIProvider_LeavesADocAnotherModelAnsweredUnjudged(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	tests := []struct {
+		name     string
+		answered []string
+		want     int
+	}{
+		{name: "the pinned model", answered: []string{"claude-sonnet-5-5"}, want: GradeRelevant},
+		{name: "a fallback model", answered: []string{"claude-opus-4-8"}, want: GradeUnjudged},
+		{name: "the pinned model and another", answered: []string{"claude-sonnet-5-5", "claude-opus-4-8"}, want: GradeUnjudged},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := document.Article{ID: uuid.New(), Title: "Floods reach Belgrade"}
+			cli := newFakeClaudeCLI(t, "")
+			cli.answer(t, `{"doc_id":"`+doc.ID.String()+`","grade":2}`, tt.answered...)
+			s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "sonnet", Effort: EffortLow})
+			require.NoError(t, err)
+			entry := pool.PoolEntry{QueryID: "q1", QueryText: "floods", Docs: []pool.PooledDoc{{DocID: doc.ID}}}
+
+			jf, err := NewRunner(RunnerConfig{Strategy: s, Reader: &stubStorageReader{articles: map[uuid.UUID]document.Article{doc.ID: doc}}}).
+				Run(context.Background(), &pool.PoolFile{Queries: []pool.PoolEntry{entry}})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, gradesOf(jf)[doc.ID])
+		})
+	}
+}
+
 func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")
@@ -191,6 +224,19 @@ func newFakeClaudeCLI(t *testing.T, reply string) *fakeClaudeCLI {
 	require.NoError(t, err)
 	cli.write(t, string(envelope), 0)
 	return cli
+}
+
+// answer makes the CLI reply with reply, reporting in modelUsage that models
+// answered.
+func (c *fakeClaudeCLI) answer(t *testing.T, reply string, models ...string) {
+	t.Helper()
+	usage := map[string]any{}
+	for _, model := range models {
+		usage[model] = map[string]any{"inputTokens": 10, "outputTokens": 5, "canonicalModel": model}
+	}
+	envelope, err := json.Marshal(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": reply, "modelUsage": usage})
+	require.NoError(t, err)
+	c.write(t, string(envelope), 0)
 }
 
 func (c *fakeClaudeCLI) reportError(t *testing.T, message string) {

@@ -184,6 +184,9 @@ func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest)
 	if result.IsError {
 		return "", fmt.Errorf("%s reported an error: %s", p.binary, result.Result)
 	}
+	if others := result.modelsOtherThan(p.model); len(others) > 0 {
+		return "", fmt.Errorf("%s answered with %s, not the pinned %s", p.binary, strings.Join(others, ", "), p.model)
+	}
 	return result.Result, nil
 }
 
@@ -225,6 +228,21 @@ func requestWorkDir(req CompletionRequest) (string, error) {
 type claudeCLIResult struct {
 	IsError bool   `json:"is_error"`
 	Result  string `json:"result"`
+	// ModelUsage is keyed by every model that answered, a fallback included.
+	ModelUsage map[string]struct {
+		CanonicalModel string `json:"canonicalModel"`
+	} `json:"modelUsage"`
+}
+
+func (r claudeCLIResult) modelsOtherThan(pinned string) []string {
+	var others []string
+	for model, usage := range r.ModelUsage {
+		if model != pinned && usage.CanonicalModel != pinned {
+			others = append(others, model)
+		}
+	}
+	slices.Sort(others)
+	return others
 }
 
 // claudeAPIProvider drives the Anthropic Messages API.
