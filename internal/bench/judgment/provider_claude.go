@@ -209,13 +209,15 @@ func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest)
 }
 
 // claudeCLIGradingOverrides are variables the CLI reads ahead of its flags to
-// change the effort, the thinking or the output budget a grade is made under.
+// change the effort, the thinking, the output budget or the request body a
+// grade is made under.
 var claudeCLIGradingOverrides = []string{
 	"CLAUDE_CODE_EFFORT_LEVEL",
 	"CLAUDE_CODE_MAX_OUTPUT_TOKENS",
 	"MAX_THINKING_TOKENS",
 	"CLAUDE_CODE_DISABLE_THINKING",
 	"CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",
+	"CLAUDE_CODE_EXTRA_BODY",
 }
 
 // claudeCLIEnv is the parent's environment without the grading overrides,

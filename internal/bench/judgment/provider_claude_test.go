@@ -100,9 +100,9 @@ func TestClaudeCLIProvider_RunsTheSameRequestFromTheSameDirectory(t *testing.T) 
 	assert.NotEqual(t, first, other)
 }
 
-// The parent's environment cannot change the effort, thinking or output
-// budget the judge block records: the CLI reads them from these variables
-// ahead of its flags.
+// The parent's environment cannot change the effort, thinking, output budget
+// or request body the judge block describes: the CLI reads them from these
+// variables ahead of its flags.
 func TestClaudeCLIProvider_GradesUnderTheJudgesBudgetWhateverTheParentEnvSays(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")
@@ -111,6 +111,8 @@ func TestClaudeCLIProvider_GradesUnderTheJudgesBudgetWhateverTheParentEnvSays(t 
 	t.Setenv("CLAUDE_CODE_MAX_OUTPUT_TOKENS", "100")
 	t.Setenv("MAX_THINKING_TOKENS", "100")
 	t.Setenv("CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING", "1")
+	t.Setenv("CLAUDE_CODE_DISABLE_THINKING", "1")
+	t.Setenv("CLAUDE_CODE_EXTRA_BODY", `{"output_config":{"effort":"max"},"temperature":1}`)
 	doc := GradingDoc{ID: uuid.New(), Title: "Climate summit opens in Belem"}
 	cli := newFakeClaudeCLI(t, `{"doc_id":"`+doc.ID.String()+`","grade":2}`)
 	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5", Effort: EffortLow})
@@ -123,7 +125,10 @@ func TestClaudeCLIProvider_GradesUnderTheJudgesBudgetWhateverTheParentEnvSays(t 
 	budget := s.Describe().MaxOutputTokens
 	assert.GreaterOrEqual(t, budget, 16000, "room for thinking at every effort")
 	assert.Equal(t, strconv.Itoa(budget), env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
-	for _, overriding := range []string{"CLAUDE_CODE_EFFORT_LEVEL", "MAX_THINKING_TOKENS", "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING"} {
+	for _, overriding := range []string{
+		"CLAUDE_CODE_EFFORT_LEVEL", "MAX_THINKING_TOKENS", "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",
+		"CLAUDE_CODE_DISABLE_THINKING", "CLAUDE_CODE_EXTRA_BODY",
+	} {
 		_, inherited := env[overriding]
 		assert.False(t, inherited, "%s reaches the CLI", overriding)
 	}

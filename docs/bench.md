@@ -332,7 +332,8 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   --setting-sources "" --strict-mcp-config --tools "" --disable-slash-commands
   --no-session-persistence`, `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` and
   `CLAUDE_CODE_MAX_OUTPUT_TOKENS` set to the judge's budget, and without any inherited
-  effort or thinking variable (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`). No settings,
+  effort, thinking or request-body variable (`CLAUDE_CODE_EFFORT_LEVEL`,
+  `MAX_THINKING_TOKENS`, `CLAUDE_CODE_EXTRA_BODY`). No settings,
   CLAUDE.md, MCP server, tool, skill or advisor reaches the grade, and the rubric goes in
   through `--system-prompt`. It signs in with the operator's claude.ai login (`--bare` would
   need `ANTHROPIC_API_KEY`). The judge block's `invocation` records what `claude --version`
