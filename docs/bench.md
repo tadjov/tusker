@@ -48,8 +48,8 @@ against the full judged relevant set, so an engine returning the correct two sco
 though it missed forty. One mean over both measures list length as much as ranking quality.
 
 The tag also reaches the judge: `bench pool` copies it into `pool.yaml`, and `keyword`,
-`bm25` and the LLM prompt turn `phrase` and `boolean` into an explicit rule, so an on-topic
-article that fails the constraint grades 0.
+`bm25` and the LLM judge check `phrase` and `boolean` in code, so an on-topic article that
+fails the constraint grades 0.
 
 ### Engine connection settings
 
@@ -290,14 +290,53 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 | `bm25`       | Heuristic | ✅        | Pool-local Okapi BM25 over its score bound → grade       |
 | `vector`     | Heuristic | ✅        | The pool's 10 docs nearest the query grade 3, the rest 0 |
 | `hybrid`     | Heuristic | ✅        | Weighted BM25 + vector fusion → grade                    |
-| `claude-cli` | LLM       | ✅        | `claude -p` subprocess per batch                         |
-| `claude-api` | LLM       | ✅        | Anthropic Messages API per batch                         |
+| `claude-cli` | LLM       | ✅        | `claude -p` subprocess, one doc per request              |
+| `claude-api` | LLM       | ✅        | Anthropic Messages API, one doc per request              |
 | `manual`     | Human     | ✅        | Emits `grade: -1` placeholders for hand-grading          |
 
+The LLM judge (`--strategy llm`, filed as `claude-cli` or `claude-api`) is the primary
+relevance judge on every cc-news track. `keyword`, `bm25`, `vector` and `hybrid` are
+cross-checks. The semantic track reports both the LLM judge's relevance and the `vector`
+judge's recall@10 against exact search. Hand grades from `bench grade --against claude-cli`
+(or `claude-api`) give the κ that validates the LLM judge.
+
+```bash
+bench judge <track> --strategy llm --provider claude-cli --model sonnet
+```
+
+- Phrase, boolean and filter constraints are decided in code before the model is asked. A
+  doc that breaks the query's phrase, its boolean expression or a declared filter grades 0
+  without a request, through the same gates `keyword` and `bm25` use. The prompt tells the
+  model the doc satisfies the constraint and asks how well it answers the query.
+- The prompt carries the query's `text` exactly as the pool stores it. `description` never
+  reaches the model.
+- One doc per request by default, so a request's bytes depend on the query and the doc alone,
+  never on pool order or on which engine found the doc. `--batch N` puts N docs in a
+  request, drawn from a shuffle of the query's pool seeded by `--seed` (default 1). The
+  judge block then records `batch_size` and `batch_seed`.
+- Every request carries one rubric and shows each doc's title and description in full and
+  its content up to 1,744 characters, the length of the median cc-news article.
+- `--model` is required: a full model id, or `haiku`, `sonnet`, `opus` or `fable` for the
+  current generation (`claude-sonnet-5-5` for `sonnet`). `--effort` sets how much the model
+  thinks before it grades (`low` by default). The judge block records the resolved model,
+  the effort and the prompt version (`v3`).
+- A reply without a grade, a null grade, or a refused request leaves the doc unjudged for
+  `--resume` to retry. It never grades 0.
+- `claude-cli` runs `claude -p` from an empty temp directory with `--safe-mode
+  --setting-sources "" --strict-mcp-config --tools "" --disable-slash-commands
+  --no-session-persistence` and `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`. No settings,
+  CLAUDE.md, MCP server, tool, skill or advisor reaches the grade, and the rubric goes in
+  through `--system-prompt`. It signs in with the operator's claude.ai login (`--bare` would
+  need `ANTHROPIC_API_KEY`). The judge block's `invocation` records the exact command.
+- `claude-api` sends `output_config.effort` and leaves out `temperature`, `top_p`, `top_k`,
+  `thinking` and server-side fallbacks. Current models reject the first four, and a fallback
+  would grade with a model the judge block does not name.
+
 Every suite query carries `text`, the query as a user would type it (`climate change`,
-`climate AND NOT politics`, or the phrase itself). `keyword` and `bm25` tokenize it, and
+`climate AND NOT politics`, or the phrase itself). `keyword` and `bm25` tokenize it,
 `vector` and `hybrid` look its vector up by it, the same string the engines' query vector
-comes from. `description` only explains the query to a reader. `bench pool` copies `text`
+comes from, and the LLM judge shows it to the model. `description` only explains the query
+to a reader. `bench pool` copies `text`
 into each pool entry beside the description and refuses a query without one, and so does
 `bench judge` for every strategy except `manual`. `bench grade` shows the text first, then the
 query's description and filters, with each article's publisher domain beside its name and
@@ -447,11 +486,14 @@ Each pool entry records, under `request_digests`, a sha256 per engine of the req
 Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: `trec/annotations.<S>.yaml`, with `graded_count` and `unjudged_count` in its meta block. The command writes the file and then exits non-zero when any pooled doc is left unjudged (`manual` excepted).
 
 Key flags:
-- `--resume` — skip docs already graded (errors if the strategy, provider, model, prompt version or rubric version changed). `bm25`, `vector` and `hybrid` skip only fully graded queries and regrade any other query whole, since they grade the whole pool at once
-- `--batch N` — override LLM batch size (`bm25`, `vector` and `hybrid` grade each query's whole pool at once and refuse it)
-- `--concurrency N` — parallel Grade calls (per-doc mode)
-- `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged. A query with no usable terms still fails the run
-- `--force` — `manual` only: rewrite the placeholders from scratch. Without it, `manual` keeps every existing hand grade, adds `-1` placeholders for new pool docs, and refuses a file another judge wrote
+- `--resume`: skip docs already graded (errors if the strategy, provider, model, effort, prompt version, invocation, batching or rubric version changed). `bm25`, `vector` and `hybrid` skip only fully graded queries and regrade any other query whole, since they grade the whole pool at once
+- `--model M`: the LLM judge's model, a full id or `haiku`, `sonnet`, `opus`, `fable`; required
+- `--effort E`: the LLM judge's effort, `low` (default), `medium`, `high`, `xhigh` or `max`
+- `--batch N`: grade N LLM docs per request instead of one (`bm25`, `vector` and `hybrid` grade each query's whole pool at once and refuse it)
+- `--seed S`: seed of the shuffle that forms `--batch` batches (default 1)
+- `--concurrency N`: parallel Grade calls (per-doc mode)
+- `--allow-unjudged`: exit 0 even when some pooled docs are left unjudged. A query with no usable terms still fails the run
+- `--force`: for `manual` only, rewrite the placeholders from scratch. Without it, `manual` keeps every existing hand grade, adds `-1` placeholders for new pool docs, and refuses a file another judge wrote
 
 ### `bench grade [<name>] --against <S|path> [--sample N] [--seed S] [--pg <dsn>] [--report]`
 
