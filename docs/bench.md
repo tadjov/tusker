@@ -354,7 +354,10 @@ Every suite query carries `text`, the query as a user would type it (`climate ch
 comes from, and the LLM judge shows it to the model. `description` only explains the query
 to a reader. `bench pool` copies `text`
 into each pool entry beside the description and refuses a query without one, and so does
-`bench judge` for every strategy except `manual`. `bench grade` shows the text first, then the
+`bench judge` for every strategy except `manual`. A text made only of stopwords (`The Who`)
+has no term to grade: `keyword`, `bm25`, `hybrid` and the LLM judge leave that query
+unjudged and fail the run, so give each query's text at least one word outside
+`english.stop`. `bench grade` shows the text first, then the
 query's description and filters, with each article's publisher domain beside its name and
 each filter bound in UTC, the instant the judges compare.
 
