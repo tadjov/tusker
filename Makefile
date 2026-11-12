@@ -196,10 +196,10 @@ bench-judge-keyword: build-bench
 	@./$(BIN_DIR)/bench judge $(TRACK) --strategy keyword
 
 bench-judge-cli: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-cli --model $(JUDGE_MODEL) --resume
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-cli --model "$(JUDGE_MODEL)" --resume
 
 bench-judge-api: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-api --model $(JUDGE_MODEL) --resume
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-api --model "$(JUDGE_MODEL)" --resume
 
 bench-show-spec: build-bench
 	@./$(BIN_DIR)/bench show spec $(TRACK)

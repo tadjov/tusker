@@ -829,3 +829,22 @@ func TestCheckResumeCompat_RefusesAnLLMFileGradedUnderOtherGates(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `gate_version: was "v0", now "v1"`)
 }
+
+// An empty --model, as an unset make variable gives, fails naming the flag
+// before anything is graded, so the annotations already on disk survive.
+func TestJudge_LLMEmptyModelFailsWithoutTouchingTheAnnotations(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	path := filepath.Join(fx.track, "trec", "annotations.claude-cli.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("graded by hand, keep me\n"), 0o644))
+
+	err := fx.judge(t, "--strategy", "llm", "--provider", "claude-cli", "--cli-binary", gradingClaudeCLI(t), "--model", "", "--resume")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--model")
+	kept, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "graded by hand, keep me\n", string(kept))
+}
