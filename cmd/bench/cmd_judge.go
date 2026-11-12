@@ -26,6 +26,7 @@ type judgeFlags struct {
 	pg             string
 	concurrency    int
 	batchSize      int
+	batchSeed      uint64
 	resume         bool
 	allowUnjudged  bool
 	force          bool
@@ -61,7 +62,8 @@ func newJudgeCmdWithReader(openReader articleReaderOpener) *cobra.Command {
                 rest 0; doc vectors from PG (--pg), query vectors from
                 trec/query-vectors, else Ollama (EMBEDDING_BASE_URL)
   hybrid      — BM25 + vector fusion, vectors as for vector
-  llm         — LLM-as-judge, batched; pick the endpoint with --provider
+  llm         — LLM-as-judge, one doc per request (--batch N groups N);
+                pick the endpoint with --provider
   manual      — writes grade:-1 placeholders for hand grading; re-running keeps
                 existing hand grades and adds placeholders for new pool docs
                 (--force starts over)
@@ -99,7 +101,8 @@ Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyKeyword), "Judge strategy")
 	cmd.Flags().StringVar(&f.pg, "pg", "", "Postgres connection (or set PG_CONNECTION_STRING)")
 	cmd.Flags().IntVar(&f.concurrency, "concurrency", 4, "Parallel Grade calls (per-doc strategies)")
-	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
+	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "LLM docs per request (default one); bm25, vector and hybrid refuse it")
+	cmd.Flags().Uint64Var(&f.batchSeed, "seed", 1, "Seed that shuffles each query's pool into --batch batches")
 	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output; bm25, vector and hybrid skip only fully graded queries")
 	cmd.Flags().BoolVar(&f.allowUnjudged, "allow-unjudged", false, "Exit 0 even when some pooled docs end unjudged; a query with no usable terms still fails")
 	cmd.Flags().BoolVar(&f.force, "force", false, "Manual only: discard existing hand grades and rewrite the placeholders")
@@ -197,62 +200,62 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		return err
 	}
 
+	cfg := judgment.RunnerConfig{
+		Strategy:    strat,
+		Reader:      reader,
+		Concurrency: f.concurrency,
+		BatchSize:   f.batchSize,
+		BatchSeed:   f.batchSeed,
+	}
 	// Every flush carries this meta, so a file left by an interrupted run names
 	// its run and grader.
-	judge := strat.Describe()
+	judge := cfg.Judge()
 	runMeta := meta.New("judge")
 	runMeta.Judge = &judge
 	runMeta.PoolRef = poolPath
 	runMeta.PoolRunID = pf.Meta.RunID
 	runMeta.RelevanceScale = []int{0, 1, 2, 3}
 	writer := judgment.NewIncrementalWriter(outPath, runMeta)
-	var prior *judgment.File
 	if f.resume {
-		prior, err = writer.LoadPrior(pf)
+		cfg.Existing, err = writer.LoadPrior(pf)
 		if err != nil {
 			return fmt.Errorf("load prior judgments: %w", err)
 		}
-		if prior != nil {
-			if err := checkResumeCompat(prior, strat); err != nil {
+		if cfg.Existing != nil {
+			if err := checkResumeCompat(cfg.Existing, judge); err != nil {
 				return err
 			}
-			if err := checkPoolBinding(prior.Meta.PoolRunID, pf); err != nil {
+			if err := checkPoolBinding(cfg.Existing.Meta.PoolRunID, pf); err != nil {
 				return fmt.Errorf("--resume: %w\n  • re-run without --resume to grade the current pool from scratch", err)
 			}
-			printWarn(cmd.OutOrStdout(), fmt.Sprintf("Resume: loaded %d prior queries from %s", len(prior.Queries), outPath))
+			printWarn(cmd.OutOrStdout(), fmt.Sprintf("Resume: loaded %d prior queries from %s", len(cfg.Existing.Queries), outPath))
 		}
 	}
-	jrunner := judgment.NewRunner(judgment.RunnerConfig{
-		Strategy:    strat,
-		Reader:      reader,
-		Concurrency: f.concurrency,
-		BatchSize:   f.batchSize,
-		Existing:    prior,
-		Sink:        writer.Append,
-		OnQueryStart: func(qid string, total, skipped int) {
-			if skipped > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs %s\n",
-					cCyan.Sprintf("[%s]", qid), total-skipped,
-					cDim.Sprintf("(%d already done)", skipped))
-			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs\n",
-					cCyan.Sprintf("[%s]", qid), total)
-			}
-		},
-		OnBatch: func(bp judgment.BatchProgress) {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %s batch %d/%d: graded=%d missing=%d %s\n",
-				cDim.Sprint("└"),
-				bp.BatchIdx, bp.BatchN, bp.Graded, bp.Missing,
-				cDim.Sprint(formatHistogram(bp.Histogram)))
-		},
-		OnQueryDone: func(qp judgment.QueryProgress) {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %s graded=%d skipped=%d unjudged=%d %s\n",
-				cCyan.Sprintf("[%s]", qp.QueryID),
-				cOK.Sprint("done:"),
-				qp.Graded, qp.Skipped, qp.Unjudged,
-				cDim.Sprint(formatHistogram(qp.Histogram)))
-		},
-	})
+	cfg.Sink = writer.Append
+	cfg.OnQueryStart = func(qid string, total, skipped int) {
+		if skipped > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs %s\n",
+				cCyan.Sprintf("[%s]", qid), total-skipped,
+				cDim.Sprintf("(%d already done)", skipped))
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs\n",
+				cCyan.Sprintf("[%s]", qid), total)
+		}
+	}
+	cfg.OnBatch = func(bp judgment.BatchProgress) {
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s batch %d/%d: graded=%d missing=%d %s\n",
+			cDim.Sprint("└"),
+			bp.BatchIdx, bp.BatchN, bp.Graded, bp.Missing,
+			cDim.Sprint(formatHistogram(bp.Histogram)))
+	}
+	cfg.OnQueryDone = func(qp judgment.QueryProgress) {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s graded=%d skipped=%d unjudged=%d %s\n",
+			cCyan.Sprintf("[%s]", qp.QueryID),
+			cOK.Sprint("done:"),
+			qp.Graded, qp.Skipped, qp.Unjudged,
+			cDim.Sprint(formatHistogram(qp.Histogram)))
+	}
+	jrunner := judgment.NewRunner(cfg)
 
 	final, runErr := jrunner.Run(cmd.Context(), pf)
 	if runErr != nil && !judgment.FailsWholeQuery(runErr) {
@@ -298,12 +301,12 @@ func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error
 		f.strategy, strings.Join(judgment.KnownJudgeStrategies(), ", "))
 }
 
-// checkResumeCompat verifies that a prior judgments file is safe to resume with
-// the given strategy. Any difference in the judge block — strategy, provider,
-// model, prompt version or rubric version — means the two runs disagree on who
-// is grading, and appending would corrupt the set.
-func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
-	was, now := prior.Judge(), strat.Describe()
+// checkResumeCompat verifies that a prior judgments file is safe to resume
+// under the judge block now. Any difference — strategy, provider, model, prompt
+// version, invocation, batching or rubric version — means the two runs
+// disagree on who is grading, and appending would corrupt the set.
+func checkResumeCompat(prior *judgment.File, now meta.Judge) error {
+	was := prior.Judge()
 	if (was == meta.Judge{}) || was.Equal(now) {
 		return nil
 	}

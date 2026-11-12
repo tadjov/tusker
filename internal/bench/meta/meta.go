@@ -71,6 +71,10 @@ type Judge struct {
 	// Invocation is how an LLM judge reached its model: the exact command line,
 	// or the API version.
 	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
+	// BatchSize and BatchSeed are set when an LLM judge grades several docs
+	// per request: how many, and the seed that shuffled the pool into batches.
+	BatchSize int    `yaml:"batch_size,omitempty" json:"batch_size,omitempty"`
+	BatchSeed uint64 `yaml:"batch_seed,omitempty" json:"batch_seed,omitempty"`
 	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
 	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }

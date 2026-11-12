@@ -189,24 +189,6 @@ func TestLLMModelAliasRecordedAsFullID(t *testing.T) {
 	}
 }
 
-func TestLLMBatchSizeFollowsProvider(t *testing.T) {
-	cli, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI})
-	if err != nil {
-		t.Fatalf("NewLLMStrategy(cli): %v", err)
-	}
-	api, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeAPI, APIKey: "k"})
-	if err != nil {
-		t.Fatalf("NewLLMStrategy(api): %v", err)
-	}
-
-	if cli.PreferredBatchSize() != claudeCLIBatchSize {
-		t.Errorf("cli batch = %d, want %d", cli.PreferredBatchSize(), claudeCLIBatchSize)
-	}
-	if api.PreferredBatchSize() != claudeAPIBatchSize {
-		t.Errorf("api batch = %d, want %d", api.PreferredBatchSize(), claudeAPIBatchSize)
-	}
-}
-
 func TestLLMStrategyUnknownProvider(t *testing.T) {
 	if _, err := NewLLMStrategy(StrategyOptions{Provider: "codex-cli"}); err == nil {
 		t.Error("NewLLMStrategy with unregistered provider should fail")

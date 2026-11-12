@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -29,18 +31,6 @@ import (
 	pkgtesting "github.com/tadjov/tusker/pkg/testing"
 )
 
-// fakeStrategy implements judgment.Strategy so we can drive checkResumeCompat
-// without a real LLM/CLI backend.
-type fakeStrategy struct {
-	judge meta.Judge
-}
-
-func (f fakeStrategy) Name() string         { return f.judge.Strategy }
-func (f fakeStrategy) Describe() meta.Judge { return f.judge }
-func (f fakeStrategy) Grade(context.Context, judgment.GradingQuery, judgment.GradingDoc) (int, error) {
-	return 0, nil
-}
-
 func llmJudge(provider, model string) meta.Judge {
 	return meta.Judge{
 		Strategy:      string(judgment.StrategyLLM),
@@ -57,33 +47,33 @@ func fileWith(j meta.Judge) *judgment.File {
 func TestCheckResumeCompat_FileWithoutJudgeResumes(t *testing.T) {
 	// A file carrying no judge block at all has nothing to contradict.
 	prior := &judgment.File{}
-	strat := fakeStrategy{judge: llmJudge("claude-cli", judgment.DefaultJudgeModel)}
+	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
 
-	err := checkResumeCompat(prior, strat)
+	err := checkResumeCompat(prior, now)
 	assert.NoError(t, err, "file with no judge block should be resumable")
 }
 
 func TestCheckResumeCompat_IdenticalJudgeMatches(t *testing.T) {
 	j := llmJudge("claude-cli", judgment.DefaultJudgeModel)
 
-	err := checkResumeCompat(fileWith(j), fakeStrategy{judge: j})
+	err := checkResumeCompat(fileWith(j), j)
 	assert.NoError(t, err)
 }
 
 func TestCheckResumeCompat_StrategyMismatch(t *testing.T) {
 	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyKeyword)})
-	strat := fakeStrategy{judge: llmJudge("claude-cli", judgment.DefaultJudgeModel)}
+	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
 
-	err := checkResumeCompat(prior, strat)
+	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
 
 func TestCheckResumeCompat_ModelMismatch(t *testing.T) {
 	prior := fileWith(llmJudge("claude-cli", "claude-haiku-4-5-20251001"))
-	strat := fakeStrategy{judge: llmJudge("claude-cli", "claude-opus-5")}
+	now := llmJudge("claude-cli", "claude-opus-5")
 
-	err := checkResumeCompat(prior, strat)
+	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
@@ -92,9 +82,9 @@ func TestCheckResumeCompat_ModelMismatch(t *testing.T) {
 // the old flat judge_model field could not express.
 func TestCheckResumeCompat_ProviderMismatch(t *testing.T) {
 	prior := fileWith(llmJudge("claude-cli", "some-model"))
-	strat := fakeStrategy{judge: llmJudge("codex-cli", "some-model")}
+	now := llmJudge("codex-cli", "some-model")
 
-	err := checkResumeCompat(prior, strat)
+	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
@@ -106,9 +96,9 @@ func TestCheckResumeCompat_PromptVersionMismatch(t *testing.T) {
 		Model:         judgment.DefaultJudgeModel,
 		PromptVersion: "v0-old",
 	})
-	strat := fakeStrategy{judge: llmJudge("claude-cli", judgment.DefaultJudgeModel)}
+	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
 
-	err := checkResumeCompat(prior, strat)
+	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
@@ -121,7 +111,21 @@ func TestCheckResumeCompat_InvocationMismatch(t *testing.T) {
 	now := was
 	now.Invocation = "claude -p --safe-mode --model claude-haiku-5-5"
 
-	err := checkResumeCompat(fileWith(was), fakeStrategy{judge: now})
+	err := checkResumeCompat(fileWith(was), now)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "judge mismatch")
+}
+
+// Batches under another seed pair docs differently, so their grades are not
+// the same judge's.
+func TestCheckResumeCompat_BatchSeedMismatch(t *testing.T) {
+	was := llmJudge("claude-cli", "claude-haiku-5-5")
+	was.BatchSize, was.BatchSeed = 10, 1
+	now := was
+	now.BatchSeed = 2
+
+	err := checkResumeCompat(fileWith(was), now)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
@@ -137,9 +141,9 @@ func TestCheckResumeCompat_LegacyFileRefusesResume(t *testing.T) {
 		LegacyJudgeModel: "claude",
 	}}
 	prior.Meta.Normalize()
-	strat := fakeStrategy{judge: llmJudge("claude-cli", judgment.DefaultJudgeModel)}
+	now := llmJudge("claude-cli", judgment.DefaultJudgeModel)
 
-	err := checkResumeCompat(prior, strat)
+	err := checkResumeCompat(prior, now)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
@@ -184,7 +188,7 @@ func TestRequireJudged(t *testing.T) {
 func TestCheckResumeCompat_RubricVersionMismatch(t *testing.T) {
 	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyBM25)})
 
-	err := checkResumeCompat(prior, judgment.NewBM25Strategy())
+	err := checkResumeCompat(prior, judgment.NewBM25Strategy().Describe())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
@@ -628,7 +632,7 @@ func TestCheckResumeCompat_RefusesTheDeterministicJudgesV1Rubric(t *testing.T) {
 			v1 := strategy.Describe()
 			v1.RubricVersion = "v1"
 
-			err := checkResumeCompat(fileWith(v1), strategy)
+			err := checkResumeCompat(fileWith(v1), strategy.Describe())
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "rubric v1")
@@ -655,4 +659,53 @@ func TestJudge_UnparsableBooleanTextFailsAfterWritingTheFile(t *testing.T) {
 	// Every flush already writes the same file, so only the closing line shows
 	// the command finalised it before failing.
 	assert.Regexp(t, `Judgments written: \S+/trec/annotations\.bm25\.yaml`, out)
+}
+
+// The judge block names the batch size and seed of a batched LLM run, and
+// neither for the default of one doc per request.
+func TestJudge_LLMJudgeBlockRecordsItsBatching(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	tests := []struct {
+		name      string
+		args      []string
+		batchSize int
+		batchSeed uint64
+	}{
+		{name: "one doc per request"},
+		{name: "batched", args: []string{"--batch", "2", "--seed", "7"}, batchSize: 2, batchSeed: 7},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fx := newJudgeFixture(t, "climate change", "climate change summit", "climate report", "climate deal")
+			args := []string{"--strategy", "llm", "--provider", "claude-cli", "--cli-binary", gradingClaudeCLI(t), "--model", "claude-haiku-5-5"}
+
+			require.NoError(t, fx.judge(t, append(args, tt.args...)...))
+
+			jf := fx.annotations(t, "claude-cli")
+			assert.Equal(t, tt.batchSize, jf.Judge().BatchSize)
+			assert.Equal(t, tt.batchSeed, jf.Judge().BatchSeed)
+			assert.Contains(t, jf.Judge().Invocation, "--model claude-haiku-5-5")
+			assert.NotContains(t, slices.Collect(maps.Values(gradesByQuery(jf)["q1"])), judgment.GradeUnjudged)
+		})
+	}
+}
+
+// gradingClaudeCLI is a stand-in claude binary that grades 2 every doc id its
+// prompt names, in the envelope --output-format json prints.
+func gradingClaudeCLI(t *testing.T) string {
+	t.Helper()
+	script := `#!/bin/sh
+ids=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | sort -u)
+entries=""
+for id in $ids; do
+  [ -n "$entries" ] && entries="$entries,"
+  entries="$entries{\\\"doc_id\\\":\\\"$id\\\",\\\"grade\\\":2}"
+done
+printf '{"type":"result","is_error":false,"result":"[%s]"}\n' "$entries"
+`
+	path := filepath.Join(t.TempDir(), "claude")
+	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
+	return path
 }

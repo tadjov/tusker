@@ -36,9 +36,6 @@ const (
 	claudeDefaultBaseURL = "https://api.anthropic.com"
 	claudeAPIKeyEnv      = "ANTHROPIC_API_KEY"
 	claudeAPIVersion     = "2023-06-01"
-
-	claudeCLIBatchSize = 10
-	claudeAPIBatchSize = 20
 )
 
 // resolveClaudeModel expands an alias, defaults an empty value, and otherwise
@@ -97,9 +94,8 @@ func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
 	return &claudeCLIProvider{binary: bin, model: resolveClaudeModel(opts.Model)}, nil
 }
 
-func (p *claudeCLIProvider) Name() Provider          { return ProviderClaudeCLI }
-func (p *claudeCLIProvider) Model() string           { return p.model }
-func (p *claudeCLIProvider) PreferredBatchSize() int { return claudeCLIBatchSize }
+func (p *claudeCLIProvider) Name() Provider { return ProviderClaudeCLI }
+func (p *claudeCLIProvider) Model() string  { return p.model }
 
 func (p *claudeCLIProvider) Invocation() string {
 	args := p.args("<system-prompt>")
@@ -186,10 +182,9 @@ func newClaudeAPIProvider(opts StrategyOptions) (LLMProvider, error) {
 	}, nil
 }
 
-func (p *claudeAPIProvider) Name() Provider          { return ProviderClaudeAPI }
-func (p *claudeAPIProvider) Model() string           { return p.model }
-func (p *claudeAPIProvider) PreferredBatchSize() int { return claudeAPIBatchSize }
-func (p *claudeAPIProvider) Invocation() string      { return "anthropic-version: " + claudeAPIVersion }
+func (p *claudeAPIProvider) Name() Provider     { return ProviderClaudeAPI }
+func (p *claudeAPIProvider) Model() string      { return p.model }
+func (p *claudeAPIProvider) Invocation() string { return "anthropic-version: " + claudeAPIVersion }
 
 func (p *claudeAPIProvider) Complete(ctx context.Context, cr CompletionRequest) (string, error) {
 	payload, err := json.Marshal(messagesRequest{

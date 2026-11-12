@@ -33,9 +33,6 @@ type LLMProvider interface {
 	// "haiku" is expanded at construction, so this always names a concrete
 	// model for the artifact's judge block.
 	Model() string
-	// PreferredBatchSize is how many candidates this endpoint grades well in one
-	// call. Subprocess transports favour smaller batches than HTTP ones.
-	PreferredBatchSize() int
 	// Invocation is the exact command line or request version a call runs
 	// with, recorded in the judge block.
 	Invocation() string

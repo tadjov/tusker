@@ -1,10 +1,13 @@
 package judgment
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +56,9 @@ type RunnerConfig struct {
 	// BatchSize overrides the strategy's preferred batch size. 0 = use preferred.
 	// A PoolStrategy refuses any other value.
 	BatchSize int
+	// BatchSeed shuffles each query's pool into batches, so a doc's batch
+	// depends on the pool's docs and the seed, never on pool order.
+	BatchSeed uint64
 	// Existing is an optional prior judgment file. Entries already present
 	// will be skipped on this run (resume support).
 	Existing *File
@@ -64,6 +70,31 @@ type RunnerConfig struct {
 	OnQueryStart func(queryID string, docCount int, alreadyGraded int)
 	OnQueryDone  func(QueryProgress)
 	OnBatch      func(BatchProgress)
+}
+
+// Judge is the strategy's judge block plus the batching it grades with.
+func (c RunnerConfig) Judge() meta.Judge {
+	judge := c.Strategy.Describe()
+	if size := c.batchSize(); size > 1 {
+		judge.BatchSize, judge.BatchSeed = size, c.BatchSeed
+	}
+	return judge
+}
+
+// batchSize is how many docs share one request; 1 for a strategy that grades
+// one doc per request.
+func (c RunnerConfig) batchSize() int {
+	bs, ok := c.Strategy.(BatchStrategy)
+	switch {
+	case !ok:
+		return 1
+	case c.BatchSize > 0:
+		return c.BatchSize
+	case bs.PreferredBatchSize() > 0:
+		return bs.PreferredBatchSize()
+	default:
+		return defaultBatchSize
+	}
 }
 
 // Runner orchestrates relevance grading. It:
@@ -113,7 +144,7 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 
 	prior := indexExisting(r.cfg.Existing)
 
-	judge := r.cfg.Strategy.Describe()
+	judge := r.cfg.Judge()
 	jf := &File{
 		Meta:    meta.Meta{Judge: &judge},
 		Queries: make([]Entry, 0, len(pf.Queries)),
@@ -285,7 +316,7 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 		gradables = append(gradables, gd)
 	}
 
-	if bs, ok := r.cfg.Strategy.(BatchStrategy); ok {
+	if bs, ok := r.cfg.Strategy.(BatchStrategy); ok && r.cfg.batchSize() > 1 {
 		if err := r.runBatched(ctx, bs, q, gradables, gradedByID); err != nil {
 			return nil, err
 		}
@@ -299,15 +330,7 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 }
 
 func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuery, gradables []GradingDoc, into map[uuid.UUID]int) error {
-	size := r.cfg.BatchSize
-	if size <= 0 {
-		size = bs.PreferredBatchSize()
-	}
-	if size <= 0 {
-		size = defaultBatchSize
-	}
-
-	batches := chunk(gradables, size)
+	batches := chunk(shuffleByID(gradables, r.cfg.BatchSeed), r.cfg.batchSize())
 	for i, batch := range batches {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -437,6 +460,16 @@ func toGradingDoc(a document.Article) GradingDoc {
 		PublishedAt:     a.PublishedAt,
 		PublisherDomain: a.PublisherDomain,
 	}
+}
+
+// shuffleByID sorts docs by id before shuffling, so the order depends on which
+// docs there are and the seed alone.
+func shuffleByID(docs []GradingDoc, seed uint64) []GradingDoc {
+	out := slices.Clone(docs)
+	slices.SortFunc(out, func(a, b GradingDoc) int { return bytes.Compare(a.ID[:], b.ID[:]) })
+	rng := rand.New(rand.NewPCG(seed, 0))
+	rng.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return out
 }
 
 func chunk[T any](xs []T, size int) [][]T {
