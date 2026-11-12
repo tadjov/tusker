@@ -346,8 +346,9 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   CLI still adds the date, the OS version, a `cc_version` billing block and an Agent SDK
   preamble ahead of the rubric, which the claude.ai login cannot turn off
   (`CLAUDE_CODE_SIMPLE` is `--bare`), so the two providers do not grade under one system
-  prompt. It runs from a directory named after the request, since the CLI also tells the
-  model its working directory.
+  prompt. It runs from a directory named after the request, the model and the effort, since
+  the CLI also tells the model its working directory and two judges may grade one pool side
+  by side.
 - `claude-api` sends `output_config.effort` and leaves out `temperature`, `top_p` and
   `top_k`, which current models reject, and `thinking`, since Opus 5.5 rejects it
   `disabled`, so the model thinks adaptively at the effort. It sends no server-side

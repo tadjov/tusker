@@ -231,6 +231,30 @@ func TestClaudeCLIProvider_LeavesADocAnotherModelAnsweredUnjudged(t *testing.T) 
 	}
 }
 
+// Two judges grading one pool side by side, as a comparison of models or
+// efforts does, never share a working directory.
+func TestClaudeCLIProvider_RunsAnotherModelOrEffortFromAnotherDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	doc := GradingDoc{ID: uuid.New(), Title: "Climate summit opens in Belem"}
+	cli := newFakeClaudeCLI(t, `{"doc_id":"`+doc.ID.String()+`","grade":2}`)
+	gradeFrom := func(model string, effort Effort) string {
+		t.Helper()
+		s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: model, Effort: effort})
+		require.NoError(t, err)
+		_, err = s.Grade(context.Background(), GradingQuery{ID: "q1", Text: "climate summit"}, doc)
+		require.NoError(t, err)
+		return cli.call(t).cwd
+	}
+
+	sonnet := gradeFrom("sonnet", EffortLow)
+
+	assert.Equal(t, sonnet, gradeFrom("sonnet", EffortLow))
+	assert.NotEqual(t, sonnet, gradeFrom("opus", EffortLow), "another model")
+	assert.NotEqual(t, sonnet, gradeFrom("sonnet", EffortHigh), "another effort")
+}
+
 func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")

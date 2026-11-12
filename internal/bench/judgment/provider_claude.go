@@ -175,7 +175,7 @@ func (p *claudeCLIProvider) args(system string) []string {
 // Complete runs the CLI from an empty directory of its own, so it finds no
 // project files to load, and sends the user payload on stdin.
 func (p *claudeCLIProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
-	workDir, err := requestWorkDir(req)
+	workDir, err := p.requestWorkDir(req)
 	if err != nil {
 		return "", err
 	}
@@ -230,10 +230,12 @@ func claudeCLIEnv(maxOutputTokens int) []string {
 	return append(env, claudeCLIDisableAdvisor, "CLAUDE_CODE_MAX_OUTPUT_TOKENS="+strconv.Itoa(maxOutputTokens))
 }
 
-// requestWorkDir creates an empty directory named after req: the CLI tells the
-// model its working directory, so a random name would change every request.
-func requestWorkDir(req CompletionRequest) (string, error) {
-	sum := sha256.Sum256([]byte(req.System + "\x00" + req.User))
+// requestWorkDir creates an empty directory named after req and the model and
+// effort grading it: the CLI tells the model its working directory, so a
+// random name would change every request, and two judges grading one pool
+// side by side would share one directory.
+func (p *claudeCLIProvider) requestWorkDir(req CompletionRequest) (string, error) {
+	sum := sha256.Sum256([]byte(strings.Join([]string{p.model, string(p.effort), req.System, req.User}, "\x00")))
 	dir := filepath.Join(os.TempDir(), "bench-judge-"+hex.EncodeToString(sum[:8]))
 	if err := os.RemoveAll(dir); err != nil {
 		return "", fmt.Errorf("clear the judge's working directory: %w", err)
