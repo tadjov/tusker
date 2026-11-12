@@ -33,6 +33,7 @@ type judgeFlags struct {
 	apiKey         string
 	provider       string
 	model          string
+	effort         string
 	apiBaseURL     string
 	cliBinary      string
 	embeddingBase  string
@@ -73,9 +74,10 @@ The llm strategy is vendor-neutral: --provider names the endpoint
 provider is all it takes to add Codex or ChatGPT.
 
 --model is required for llm: a full model id or a shorthand for the current
-generation (` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `). The resolved id, the
-provider and the prompt version are recorded in the artifact's judge block, so
-qrels always name the grader that produced them.
+generation (` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `). --effort sets how much the
+model may think before it grades (default low). The resolved id, the effort,
+the provider and the prompt version are recorded in the artifact's judge block,
+so qrels always name the grader that produced them.
 
 Output goes to <track>/trec/annotations.<strategy>.yaml, where <strategy> is the
 strategy for heuristic judges and the provider for llm judges.
@@ -111,6 +113,8 @@ Ctrl-C is safe.`,
 		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
 	cmd.Flags().StringVar(&f.model, "model", "",
 		"Judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); required for --strategy llm")
+	cmd.Flags().StringVar(&f.effort, "effort", string(judgment.EffortLow),
+		"Effort the llm judge's model grades at: "+strings.Join(judgment.KnownEfforts(), " | "))
 	cmd.Flags().StringVar(&f.apiBaseURL, "api-base", "", "Anthropic API base URL")
 	cmd.Flags().StringVar(&f.cliBinary, "cli-binary", "", "claude CLI binary path")
 	cmd.Flags().StringVar(&f.embeddingBase, "embedding-base", "", "Embedding endpoint for vector/hybrid (or EMBEDDING_BASE_URL)")
@@ -179,6 +183,11 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		APIBaseURL:  f.apiBaseURL,
 		CLIBinary:   f.cliBinary,
 		Concurrency: f.concurrency,
+	}
+	if kind == judgment.StrategyLLM {
+		if opts.Effort, err = judgment.ParseEffort(f.effort); err != nil {
+			return fmt.Errorf("--effort: %w", err)
+		}
 	}
 	if kind == judgment.StrategyVector || kind == judgment.StrategyHybrid {
 		store, model, closeStore, err := buildVectorStore(cmd.Context(), f, tr)

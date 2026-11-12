@@ -29,7 +29,7 @@ func TestClaudeCLIProvider_GradesIsolatedAndRecordsItsInvocation(t *testing.T) {
 	}
 	docID := uuid.New()
 	cli := newFakeClaudeCLI(t, `{"doc_id":"`+docID.String()+`","grade":2}`)
-	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5"})
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5", Effort: EffortLow})
 	require.NoError(t, err)
 
 	grade, err := s.Grade(context.Background(),
@@ -40,6 +40,7 @@ func TestClaudeCLIProvider_GradesIsolatedAndRecordsItsInvocation(t *testing.T) {
 	assert.Equal(t, 2, grade)
 	call := cli.call(t)
 	assert.Equal(t, "claude-haiku-5-5", call.flag(t, "--model"))
+	assert.Equal(t, "low", call.flag(t, "--effort"))
 	for _, isolating := range []string{"--safe-mode", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"} {
 		assert.Contains(t, call.args, isolating)
 	}
@@ -77,7 +78,7 @@ func TestClaudeCLIProvider_ReportsTheErrorTheCLIReturns(t *testing.T) {
 	}
 	cli := newFakeClaudeCLI(t, "")
 	cli.reportError(t, "Not logged in")
-	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5"})
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: cli.path, Model: "claude-haiku-5-5", Effort: EffortLow})
 	require.NoError(t, err)
 
 	_, err = s.Grade(context.Background(), GradingQuery{ID: "q1", Text: "climate change"}, GradingDoc{ID: uuid.New(), Title: "Climate"})
@@ -178,7 +179,7 @@ func TestClaudeAPIProvider_LeavesARefusedDocUnjudged(t *testing.T) {
 			`"stop_reason":"refusal","stop_details":{"type":"refusal","category":"general_harms","explanation":"declined"}}`))
 	}))
 	defer api.Close()
-	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeAPI, APIKey: "test-key", APIBaseURL: api.URL, Model: "claude-sonnet-5-5"})
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeAPI, APIKey: "test-key", APIBaseURL: api.URL, Model: "claude-sonnet-5-5", Effort: EffortLow})
 	require.NoError(t, err)
 	entry := pool.PoolEntry{QueryID: "q1", QueryText: "village attack", Docs: []pool.PooledDoc{{DocID: doc.ID}}}
 
@@ -187,4 +188,39 @@ func TestClaudeAPIProvider_LeavesARefusedDocUnjudged(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, GradeUnjudged, gradesOf(jf)[doc.ID])
+}
+
+// A grade request pins the model and the effort and sends nothing current
+// models reject: no sampling parameters, no thinking setting, no prefill. The
+// grade is read from the text block, after any thinking block.
+func TestClaudeAPIProvider_SendsThePinnedModelAndEffortOnly(t *testing.T) {
+	docID := uuid.New()
+	var body map[string]any
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		reply, err := json.Marshal(`{"doc_id":"` + docID.String() + `","grade":2}`)
+		assert.NoError(t, err)
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"type":"message","role":"assistant","stop_reason":"end_turn","content":[` +
+			`{"type":"thinking","thinking":"","signature":"sig"},{"type":"text","text":` + string(reply) + `}]}`))
+	}))
+	defer api.Close()
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeAPI, APIKey: "test-key", APIBaseURL: api.URL, Model: "sonnet", Effort: EffortLow})
+	require.NoError(t, err)
+
+	grade, err := s.Grade(context.Background(), GradingQuery{ID: "q1", Text: "floods"}, GradingDoc{ID: docID, Title: "Floods reach Belgrade"})
+
+	require.NoError(t, err)
+	assert.Equal(t, GradeRelevant, grade)
+	assert.Equal(t, "claude-sonnet-5-5", body["model"])
+	assert.Equal(t, map[string]any{"effort": "low"}, body["output_config"])
+	for _, rejected := range []string{"temperature", "top_p", "top_k", "thinking", "fallbacks"} {
+		assert.NotContains(t, body, rejected)
+	}
+	messages, ok := body["messages"].([]any)
+	require.True(t, ok)
+	require.Len(t, messages, 1, "a user message and no assistant prefill")
+	assert.Equal(t, "user", messages[0].(map[string]any)["role"])
+	assert.Equal(t, "low", s.Describe().Effort)
+	assert.Contains(t, s.Describe().Invocation, "low")
 }

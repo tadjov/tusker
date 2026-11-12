@@ -8,9 +8,10 @@ import (
 	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
+// Output budgets leave room for adaptive thinking before the JSON grades.
 const (
-	llmMaxOutputTokens      = 64
-	llmBatchMaxOutputTokens = 4096
+	llmMaxOutputTokens      = 2048
+	llmBatchMaxOutputTokens = 8192
 )
 
 // LLMStrategy is the LLM-as-judge strategy. It owns the rubric, batching and
@@ -40,6 +41,7 @@ func (s *LLMStrategy) Describe() meta.Judge {
 		Provider:      string(s.provider.Name()),
 		Model:         s.provider.Model(),
 		PromptVersion: PromptVersion,
+		Effort:        string(s.provider.Effort()),
 		Invocation:    s.provider.Invocation(),
 	}
 }

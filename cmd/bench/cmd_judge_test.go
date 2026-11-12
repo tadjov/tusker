@@ -131,6 +131,20 @@ func TestCheckResumeCompat_BatchSeedMismatch(t *testing.T) {
 	assert.Contains(t, err.Error(), "judge mismatch")
 }
 
+// The same model at another effort grades differently, so it is not the same
+// judge.
+func TestCheckResumeCompat_EffortMismatch(t *testing.T) {
+	was := llmJudge("claude-api", "claude-sonnet-5-5")
+	was.Effort = "low"
+	now := was
+	now.Effort = "high"
+
+	err := checkResumeCompat(fileWith(was), now)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "judge mismatch")
+}
+
 // Legacy annotations (flat strategy/judge_model, no judge block) normalize to a
 // judge whose strategy is the old selector, which cannot equal the new
 // llm/claude-cli shape — so resuming onto them is correctly refused. Those
@@ -661,9 +675,9 @@ func TestJudge_UnparsableBooleanTextFailsAfterWritingTheFile(t *testing.T) {
 	assert.Regexp(t, `Judgments written: \S+/trec/annotations\.bm25\.yaml`, out)
 }
 
-// The judge block names the batch size and seed of a batched LLM run, and
-// neither for the default of one doc per request.
-func TestJudge_LLMJudgeBlockRecordsItsBatching(t *testing.T) {
+// The judge block names the effort of an LLM run, and the batch size and seed
+// of a batched one, which the default of one doc per request has none of.
+func TestJudge_LLMJudgeBlockRecordsItsEffortAndBatching(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake binary is a POSIX shell script")
 	}
@@ -672,9 +686,11 @@ func TestJudge_LLMJudgeBlockRecordsItsBatching(t *testing.T) {
 		args      []string
 		batchSize int
 		batchSeed uint64
+		effort    string
 	}{
-		{name: "one doc per request"},
-		{name: "batched", args: []string{"--batch", "2", "--seed", "7"}, batchSize: 2, batchSeed: 7},
+		{name: "one doc per request", effort: "low"},
+		{name: "batched", args: []string{"--batch", "2", "--seed", "7"}, batchSize: 2, batchSeed: 7, effort: "low"},
+		{name: "another effort", args: []string{"--effort", "medium"}, effort: "medium"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -686,6 +702,7 @@ func TestJudge_LLMJudgeBlockRecordsItsBatching(t *testing.T) {
 			jf := fx.annotations(t, "claude-cli")
 			assert.Equal(t, tt.batchSize, jf.Judge().BatchSize)
 			assert.Equal(t, tt.batchSeed, jf.Judge().BatchSeed)
+			assert.Equal(t, tt.effort, jf.Judge().Effort)
 			assert.Contains(t, jf.Judge().Invocation, "--model claude-haiku-5-5")
 			assert.NotContains(t, slices.Collect(maps.Values(gradesByQuery(jf)["q1"])), judgment.GradeUnjudged)
 		})
@@ -734,4 +751,15 @@ func TestJudge_LLMWithoutModelFailsNamingTheFlag(t *testing.T) {
 		})
 	}
 	assert.False(t, reached.Load(), "no request reaches the API")
+}
+
+func TestJudge_LLMUnknownEffortFailsNamingTheFlag(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+	err := fx.judge(t, "--strategy", "llm", "--provider", "claude-cli", "--cli-binary", filepath.Join(t.TempDir(), "no-claude-here"),
+		"--model", "sonnet", "--effort", "minimal")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--effort")
+	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.claude-cli.yaml"))
 }

@@ -68,8 +68,10 @@ type Judge struct {
 	Provider      string `yaml:"provider,omitempty" json:"provider,omitempty"`
 	Model         string `yaml:"model,omitempty" json:"model,omitempty"`
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
+	// Effort is the effort level an LLM judge's model graded at.
+	Effort string `yaml:"effort,omitempty" json:"effort,omitempty"`
 	// Invocation is how an LLM judge reached its model: the exact command line,
-	// or the API version.
+	// or the API version and effort.
 	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
 	// BatchSize and BatchSeed are set when an LLM judge grades several docs
 	// per request: how many, and the seed that shuffled the pool into batches.

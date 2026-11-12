@@ -103,10 +103,13 @@ type StrategyOptions struct {
 	// Provider selects the endpoint behind StrategyLLM. Empty means
 	// DefaultProvider.
 	Provider Provider
-	// Model is the judge model — a full id or a provider alias such as "haiku".
-	// Empty means the provider's default. The provider expands it, so the judge
-	// block always records a concrete id.
-	Model       string
+	// Model is the judge model — a full id or a provider alias such as "sonnet".
+	// An LLM judge needs one. The provider expands it, so the judge block always
+	// records a concrete id.
+	Model string
+	// Effort is the effort level an LLM judge's model grades at; an LLM judge
+	// needs one.
+	Effort      Effort
 	APIBaseURL  string
 	CLIBinary   string
 	Concurrency int

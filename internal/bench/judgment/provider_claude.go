@@ -43,6 +43,15 @@ func requireClaudeModel(provider Provider, model string) (string, error) {
 	return resolveClaudeModel(model), nil
 }
 
+// requireEffort refuses an unset effort: the model's default would grade at a
+// level the judge block cannot name.
+func requireEffort(provider Provider, effort Effort) error {
+	if _, err := ParseEffort(string(effort)); err != nil {
+		return fmt.Errorf("provider %s needs --effort: %w", provider, err)
+	}
+	return nil
+}
+
 // resolveClaudeModel expands an alias and passes a full model id through
 // untouched.
 func resolveClaudeModel(model string) string {
@@ -83,6 +92,7 @@ const claudeCLIDisableAdvisor = "CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1"
 type claudeCLIProvider struct {
 	binary string
 	model  string
+	effort Effort
 }
 
 func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
@@ -90,15 +100,19 @@ func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := requireEffort(ProviderClaudeCLI, opts.Effort); err != nil {
+		return nil, err
+	}
 	bin := opts.CLIBinary
 	if bin == "" {
 		bin = claudeDefaultBinary
 	}
-	return &claudeCLIProvider{binary: bin, model: model}, nil
+	return &claudeCLIProvider{binary: bin, model: model, effort: opts.Effort}, nil
 }
 
 func (p *claudeCLIProvider) Name() Provider { return ProviderClaudeCLI }
 func (p *claudeCLIProvider) Model() string  { return p.model }
+func (p *claudeCLIProvider) Effort() Effort { return p.effort }
 
 func (p *claudeCLIProvider) Invocation() string {
 	args := p.args("<system-prompt>")
@@ -115,7 +129,7 @@ func (p *claudeCLIProvider) Invocation() string {
 
 func (p *claudeCLIProvider) args(system string) []string {
 	args := append([]string{"-p"}, claudeCLIIsolation...)
-	return append(args, "--output-format", "json", "--model", p.model, "--system-prompt", system)
+	return append(args, "--output-format", "json", "--model", p.model, "--effort", string(p.effort), "--system-prompt", system)
 }
 
 // Complete runs the CLI from an empty directory of its own, so it finds no
@@ -161,6 +175,7 @@ type claudeCLIResult struct {
 type claudeAPIProvider struct {
 	apiKey  string
 	model   string
+	effort  Effort
 	baseURL string
 	client  *http.Client
 }
@@ -168,6 +183,9 @@ type claudeAPIProvider struct {
 func newClaudeAPIProvider(opts StrategyOptions) (LLMProvider, error) {
 	model, err := requireClaudeModel(ProviderClaudeAPI, opts.Model)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireEffort(ProviderClaudeAPI, opts.Effort); err != nil {
 		return nil, err
 	}
 	key := opts.APIKey
@@ -184,21 +202,27 @@ func newClaudeAPIProvider(opts StrategyOptions) (LLMProvider, error) {
 	return &claudeAPIProvider{
 		apiKey:  key,
 		model:   model,
+		effort:  opts.Effort,
 		baseURL: base,
 		client:  &http.Client{Timeout: 60 * time.Second},
 	}, nil
 }
 
-func (p *claudeAPIProvider) Name() Provider     { return ProviderClaudeAPI }
-func (p *claudeAPIProvider) Model() string      { return p.model }
-func (p *claudeAPIProvider) Invocation() string { return "anthropic-version: " + claudeAPIVersion }
+func (p *claudeAPIProvider) Name() Provider { return ProviderClaudeAPI }
+func (p *claudeAPIProvider) Model() string  { return p.model }
+func (p *claudeAPIProvider) Effort() Effort { return p.effort }
+
+func (p *claudeAPIProvider) Invocation() string {
+	return "anthropic-version: " + claudeAPIVersion + ", output_config.effort: " + string(p.effort)
+}
 
 func (p *claudeAPIProvider) Complete(ctx context.Context, cr CompletionRequest) (string, error) {
 	payload, err := json.Marshal(messagesRequest{
-		Model:     p.model,
-		MaxTokens: cr.MaxTokens,
-		System:    cr.System,
-		Messages:  []messagesEntry{{Role: "user", Content: cr.User}},
+		Model:        p.model,
+		MaxTokens:    cr.MaxTokens,
+		System:       cr.System,
+		Messages:     []messagesEntry{{Role: "user", Content: cr.User}},
+		OutputConfig: outputConfig{Effort: p.effort},
 	})
 	if err != nil {
 		return "", fmt.Errorf("marshal request: %w", err)
@@ -241,17 +265,30 @@ func (p *claudeAPIProvider) Complete(ctx context.Context, cr CompletionRequest) 
 		slog.Warn("judge model refused the request", "model", p.model, "category", category)
 		return "", fmt.Errorf("%s refused the request (category %q)", p.model, category)
 	}
-	if len(mr.Content) == 0 {
-		return "", fmt.Errorf("api response has no content")
+	var text strings.Builder
+	for _, block := range mr.Content {
+		if block.Type == "text" {
+			text.WriteString(block.Text)
+		}
 	}
-	return mr.Content[0].Text, nil
+	if text.Len() == 0 {
+		return "", fmt.Errorf("api response has no text (stop_reason %q)", mr.StopReason)
+	}
+	return text.String(), nil
 }
 
+// messagesRequest leaves out sampling parameters and thinking, which current
+// models reject, so the model thinks adaptively at the pinned effort.
 type messagesRequest struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	System    string          `json:"system,omitempty"`
-	Messages  []messagesEntry `json:"messages"`
+	Model        string          `json:"model"`
+	MaxTokens    int             `json:"max_tokens"`
+	System       string          `json:"system,omitempty"`
+	Messages     []messagesEntry `json:"messages"`
+	OutputConfig outputConfig    `json:"output_config"`
+}
+
+type outputConfig struct {
+	Effort Effort `json:"effort"`
 }
 
 type messagesEntry struct {

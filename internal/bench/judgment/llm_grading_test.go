@@ -300,6 +300,7 @@ type fakeLLMProvider struct {
 
 func (f *fakeLLMProvider) Name() Provider     { return "fake" }
 func (f *fakeLLMProvider) Model() string      { return "fake-model" }
+func (f *fakeLLMProvider) Effort() Effort     { return EffortLow }
 func (f *fakeLLMProvider) Invocation() string { return "fake" }
 
 func (f *fakeLLMProvider) Complete(_ context.Context, req CompletionRequest) (string, error) {
