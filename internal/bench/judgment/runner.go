@@ -75,8 +75,8 @@ type RunnerConfig struct {
 // Judge is the strategy's judge block plus the batching it grades with.
 func (c RunnerConfig) Judge() meta.Judge {
 	judge := c.Strategy.Describe()
-	if size := c.batchSize(); size > 1 {
-		judge.Batching = &meta.Batching{Size: size, Seed: c.BatchSeed}
+	if bs, ok := c.Strategy.(BatchStrategy); ok && c.batchSize() > 1 {
+		judge.Batching = &meta.Batching{Size: c.batchSize(), Seed: c.BatchSeed, MaxOutputTokens: bs.BatchMaxOutputTokens()}
 	}
 	return judge
 }

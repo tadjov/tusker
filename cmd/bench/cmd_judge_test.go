@@ -133,14 +133,14 @@ func TestCheckResumeCompat_SameBatchingMatches(t *testing.T) {
 // the same judge's.
 func TestCheckResumeCompat_BatchSeedMismatch(t *testing.T) {
 	was := llmJudge("claude-cli", "claude-haiku-5-5")
-	was.Batching = &meta.Batching{Size: 10, Seed: 1}
+	was.Batching = &meta.Batching{Size: 10, Seed: 1, MaxOutputTokens: 20000}
 	now := was
-	now.Batching = &meta.Batching{Size: 10, Seed: 2}
+	now.Batching = &meta.Batching{Size: 10, Seed: 2, MaxOutputTokens: 20000}
 
 	err := checkResumeCompat(fileWith(was), now)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "batching: was size 10 seed 1, now size 10 seed 2")
+	assert.Contains(t, err.Error(), "batching: was size 10, seed 1, 20000 tokens, now size 10, seed 2, 20000 tokens")
 }
 
 // The same model at another effort grades differently, so it is not the same
@@ -702,8 +702,8 @@ func TestJudge_LLMJudgeBlockRecordsItsEffortAndBatching(t *testing.T) {
 		effort   string
 	}{
 		{name: "one doc per request", effort: "low"},
-		{name: "batched", args: []string{"--batch", "2", "--seed", "7"}, batching: map[string]any{"size": 2, "seed": 7}, effort: "low"},
-		{name: "batched under seed 0", args: []string{"--batch", "2", "--seed", "0"}, batching: map[string]any{"size": 2, "seed": 0}, effort: "low"},
+		{name: "batched", args: []string{"--batch", "2", "--seed", "7"}, batching: map[string]any{"size": 2, "seed": 7, "max_output_tokens": 20000}, effort: "low"},
+		{name: "batched under seed 0", args: []string{"--batch", "2", "--seed", "0"}, batching: map[string]any{"size": 2, "seed": 0, "max_output_tokens": 20000}, effort: "low"},
 		{name: "another effort", args: []string{"--effort", "medium"}, effort: "medium"},
 	}
 	for _, tt := range tests {

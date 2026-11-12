@@ -64,6 +64,8 @@ type DocStrategy interface {
 // docs through Grade() as a fallback.
 type BatchStrategy interface {
 	DocStrategy
+	// BatchMaxOutputTokens is the output budget of one batch request.
+	BatchMaxOutputTokens() int
 	GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error)
 }
 

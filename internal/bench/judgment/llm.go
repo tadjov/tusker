@@ -9,10 +9,11 @@ import (
 )
 
 // Output budgets leave room for adaptive thinking at any effort before the
-// JSON grades, and stay below what a request can send without streaming.
+// JSON grades, and stay under the ~21,333 max_tokens the CLI's SDK sends
+// without streaming.
 const (
 	llmMaxOutputTokens      = 16000
-	llmBatchMaxOutputTokens = 32000
+	llmBatchMaxOutputTokens = 20000
 )
 
 // LLMStrategy is the LLM-as-judge strategy. It owns the rubric, batching and
@@ -38,15 +39,14 @@ func (s *LLMStrategy) Name() string { return string(StrategyLLM) }
 // name a concrete model and the resume guard can catch a grader swap.
 func (s *LLMStrategy) Describe() meta.Judge {
 	return meta.Judge{
-		Strategy:             string(StrategyLLM),
-		Provider:             string(s.provider.Name()),
-		Model:                s.provider.Model(),
-		PromptVersion:        PromptVersion,
-		GateVersion:          gateVersion,
-		Effort:               string(s.provider.Effort()),
-		MaxOutputTokens:      llmMaxOutputTokens,
-		BatchMaxOutputTokens: llmBatchMaxOutputTokens,
-		Invocation:           s.provider.Invocation(),
+		Strategy:        string(StrategyLLM),
+		Provider:        string(s.provider.Name()),
+		Model:           s.provider.Model(),
+		PromptVersion:   PromptVersion,
+		GateVersion:     gateVersion,
+		Effort:          string(s.provider.Effort()),
+		MaxOutputTokens: llmMaxOutputTokens,
+		Invocation:      s.provider.Invocation(),
 	}
 }
 
@@ -74,6 +74,8 @@ func (s *LLMStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc)
 	}
 	return grade, nil
 }
+
+func (s *LLMStrategy) BatchMaxOutputTokens() int { return llmBatchMaxOutputTokens }
 
 // GradeBatch implements BatchStrategy, gating docs as Grade does: one provider
 // call per batch for the docs the gate admits, none when it admits none.

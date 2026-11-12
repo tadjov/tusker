@@ -122,9 +122,8 @@ func TestClaudeCLIProvider_GradesUnderTheJudgesBudgetWhateverTheParentEnvSays(t 
 
 	require.NoError(t, err)
 	env := cli.call(t).env
-	budget := s.Describe().MaxOutputTokens
-	assert.GreaterOrEqual(t, budget, 16000, "room for thinking at every effort")
-	assert.Equal(t, strconv.Itoa(budget), env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
+	assert.Equal(t, 16000, s.Describe().MaxOutputTokens, "room for thinking at every effort")
+	assert.Equal(t, "16000", env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
 	for _, overriding := range []string{
 		"CLAUDE_CODE_EFFORT_LEVEL", "MAX_THINKING_TOKENS", "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",
 		"CLAUDE_CODE_DISABLE_THINKING", "CLAUDE_CODE_EXTRA_BODY",
@@ -405,7 +404,8 @@ func TestClaudeAPIProvider_SendsThePinnedModelAndEffortOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, GradeRelevant, grade)
 	assert.Equal(t, "claude-sonnet-5-5", body["model"])
-	assert.InDelta(t, s.Describe().MaxOutputTokens, body["max_tokens"], 0, "the budget the judge block records")
+	assert.InDelta(t, 16000, body["max_tokens"], 0, "the one-doc budget")
+	assert.Equal(t, 16000, s.Describe().MaxOutputTokens)
 	assert.Equal(t, map[string]any{"effort": "low"}, body["output_config"])
 	for _, rejected := range []string{"temperature", "top_p", "top_k", "thinking", "fallbacks"} {
 		assert.NotContains(t, body, rejected)
@@ -426,4 +426,27 @@ func versionOnlyClaudeCLI(t *testing.T) string {
 	script := "#!/bin/sh\n[ \"$1\" = \"--version\" ] && echo \"2.1.322 (Claude Code)\" && exit 0\nexit 1\n"
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 	return path
+}
+
+// A batch gets its own budget, kept under the ~21,333 max_tokens a request may
+// ask for without streaming, and the judge block records it with the batching.
+func TestClaudeAPIProvider_SendsABatchUnderTheBatchBudget(t *testing.T) {
+	docs := []GradingDoc{{ID: uuid.New(), Title: "Floods reach Belgrade"}, {ID: uuid.New(), Title: "Sava rises"}}
+	var body map[string]any
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		reply, err := json.Marshal(`[{"doc_id":"` + docs[0].ID.String() + `","grade":2},{"doc_id":"` + docs[1].ID.String() + `","grade":1}]`)
+		assert.NoError(t, err)
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"type":"message","role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":` + string(reply) + `}]}`))
+	}))
+	defer api.Close()
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeAPI, APIKey: "test-key", APIBaseURL: api.URL, Model: "sonnet", Effort: EffortLow})
+	require.NoError(t, err)
+
+	_, err = s.GradeBatch(context.Background(), GradingQuery{ID: "q1", Text: "floods"}, docs)
+
+	require.NoError(t, err)
+	assert.InDelta(t, 20000, body["max_tokens"], 0)
+	assert.Equal(t, &meta.Batching{Size: 2, Seed: 3, MaxOutputTokens: 20000}, RunnerConfig{Strategy: s, BatchSize: 2, BatchSeed: 3}.Judge().Batching)
 }

@@ -64,6 +64,7 @@ func (f *fakeBatchStrategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: f.name}
 }
 
+func (f *fakeBatchStrategy) BatchMaxOutputTokens() int { return 0 }
 func (f *fakeBatchStrategy) Grade(_ context.Context, _ GradingQuery, _ GradingDoc) (int, error) {
 	f.mu.Lock()
 	f.perDocCalls++

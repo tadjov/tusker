@@ -73,10 +73,9 @@ type Judge struct {
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
 	// Effort is the effort level an LLM judge's model graded at.
 	Effort string `yaml:"effort,omitempty" json:"effort,omitempty"`
-	// MaxOutputTokens and BatchMaxOutputTokens are an LLM judge's output budget
-	// for a request holding one doc and for a batch.
-	MaxOutputTokens      int `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"`
-	BatchMaxOutputTokens int `yaml:"batch_max_output_tokens,omitempty" json:"batch_max_output_tokens,omitempty"`
+	// MaxOutputTokens is an LLM judge's output budget for a request holding one
+	// doc; a batch's is in Batching.
+	MaxOutputTokens int `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"`
 	// Invocation is how an LLM judge reached its model: the exact command line,
 	// or the API version and effort.
 	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
@@ -89,14 +88,17 @@ type Judge struct {
 	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }
 
-// Batching is how many docs an LLM judge put in one request, and the seed that
-// shuffled each query's pool into those batches.
+// Batching is how many docs an LLM judge put in one request, the seed that
+// shuffled each query's pool into those batches, and a batch's output budget.
 type Batching struct {
-	Size int    `yaml:"size" json:"size"`
-	Seed uint64 `yaml:"seed" json:"seed"`
+	Size            int    `yaml:"size" json:"size"`
+	Seed            uint64 `yaml:"seed" json:"seed"`
+	MaxOutputTokens int    `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"`
 }
 
-func (b Batching) String() string { return fmt.Sprintf("size %d seed %d", b.Size, b.Seed) }
+func (b Batching) String() string {
+	return fmt.Sprintf("size %d, seed %d, %d tokens", b.Size, b.Seed, b.MaxOutputTokens)
+}
 
 // Equal reports whether two judges would produce comparable grades. Used by the
 // resume guard: any difference means the existing file and the current run
