@@ -112,6 +112,54 @@ func TestLLMJudge_LeavesAQueryWithAnUnparsableBooleanUnjudged(t *testing.T) {
 	}
 }
 
+// A doc is shown the same way whether it is graded alone or in a batch: the
+// same rubric, its title and description in full, and its content up to the
+// same cut, which sends a median cc-news article (1,744 characters) whole.
+func TestLLMJudge_GradesOneDocAndABatchUnderTheSameRubricAndContentCut(t *testing.T) {
+	const medianArticleChars = 1744
+	median := GradingDoc{
+		ID:          uuid.New(),
+		Title:       "Sava floods reach Belgrade",
+		Description: strings.Repeat("Rijeka Sava se izlila. ", 40),
+		Content:     strings.Repeat("Ž", medianArticleChars),
+	}
+	long := GradingDoc{ID: uuid.New(), Title: "Danube floods", Content: strings.Repeat("Đ", 3*medianArticleChars)}
+	q := GradingQuery{ID: "q1", Text: "floods"}
+	provider := &fakeLLMProvider{grade: func(uuid.UUID) int { return GradeRelevant }}
+	s := &LLMStrategy{provider: provider}
+
+	for _, doc := range []GradingDoc{median, long} {
+		_, err := s.Grade(context.Background(), q, doc)
+		require.NoError(t, err)
+	}
+	_, err := s.GradeBatch(context.Background(), q, []GradingDoc{median, long})
+	require.NoError(t, err)
+
+	reqs := provider.requests()
+	require.Len(t, reqs, 3)
+	alone, batched := reqs[:2], reqs[2]
+	for i, doc := range []GradingDoc{median, long} {
+		assert.Equal(t, batched.System, alone[i].System, "one rubric")
+		assert.Equal(t, contentShown(t, batched.User, doc), contentShown(t, alone[i].User, doc), "one content cut")
+	}
+	assert.Contains(t, batched.User, median.Title)
+	assert.Contains(t, batched.User, median.Description)
+	assert.Equal(t, median.Content, contentShown(t, batched.User, median))
+	assert.NotContains(t, batched.User, long.Content)
+}
+
+// contentShown is the content line a prompt shows for doc, the doc's block
+// starting at its id.
+func contentShown(t *testing.T, prompt string, doc GradingDoc) string {
+	t.Helper()
+	_, block, found := strings.Cut(prompt, doc.ID.String())
+	require.True(t, found, "prompt names doc %s", doc.ID)
+	_, content, found := strings.Cut(block, "Content: ")
+	require.True(t, found, "prompt shows doc %s's content", doc.ID)
+	content, _, _ = strings.Cut(content, "\n")
+	return strings.TrimSuffix(content, "...")
+}
+
 // fakeLLMProvider grades every doc a request names with grade(doc), answering
 // a batch request with an array and a single-doc request with an object.
 type fakeLLMProvider struct {

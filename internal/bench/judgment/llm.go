@@ -91,7 +91,7 @@ func (s *LLMStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []Gra
 		return refused, nil
 	}
 	text, err := s.provider.Complete(ctx, CompletionRequest{
-		System:    BatchSystemPrompt,
+		System:    systemPrompt,
 		User:      BuildBatchGradingPrompt(q, admitted),
 		MaxTokens: llmBatchMaxOutputTokens,
 	})
