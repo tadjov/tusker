@@ -75,10 +75,6 @@ func (s *LLMStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc)
 	return grade, nil
 }
 
-// PreferredBatchSize is one doc per request, so a doc's grade never depends on
-// the docs it would share a request with.
-func (s *LLMStrategy) PreferredBatchSize() int { return 1 }
-
 // GradeBatch implements BatchStrategy, gating docs as Grade does: one provider
 // call per batch for the docs the gate admits, none when it admits none.
 func (s *LLMStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {

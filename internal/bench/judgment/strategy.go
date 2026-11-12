@@ -51,8 +51,8 @@ type DocStrategy interface {
 }
 
 // BatchStrategy is an optional capability: strategies that can grade N docs
-// in a single LLM call should implement it. The runner detects it via type
-// assertion and prefers GradeBatch over Grade when present.
+// in a single LLM call implement it. The runner calls GradeBatch only when
+// RunnerConfig.BatchSize asks for more than one doc per request.
 //
 // The pattern follows Anthropic's "LLM as judge — batched" cookbook:
 //   - one system prompt sets the rubric
@@ -64,7 +64,6 @@ type DocStrategy interface {
 // docs through Grade() as a fallback.
 type BatchStrategy interface {
 	DocStrategy
-	PreferredBatchSize() int
 	GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error)
 }
 

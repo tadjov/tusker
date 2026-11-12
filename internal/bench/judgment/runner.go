@@ -23,7 +23,6 @@ const (
 	defaultConcurrency = 4
 	minConcurrency     = 1
 	maxConcurrency     = 32
-	defaultBatchSize   = 10
 )
 
 // BatchProgress is delivered to RunnerConfig.OnBatch after each batch call.
@@ -53,8 +52,8 @@ type RunnerConfig struct {
 	Strategy    Strategy
 	Reader      storage.Reader
 	Concurrency int
-	// BatchSize overrides the strategy's preferred batch size. 0 = use preferred.
-	// A PoolStrategy refuses any other value.
+	// BatchSize is how many docs a BatchStrategy grades per request; 0 or 1
+	// grades one doc per request. A PoolStrategy refuses any value above 0.
 	BatchSize int
 	// BatchSeed shuffles each query's whole pool into batches, so a doc's batch
 	// depends on the pool's docs and the seed, never on pool order, on what an
@@ -82,26 +81,20 @@ func (c RunnerConfig) Judge() meta.Judge {
 	return judge
 }
 
-// batchSize is how many docs share one request; 1 for a strategy that grades
-// one doc per request.
+// batchSize is how many docs share one request; 1 unless a BatchStrategy is
+// asked for more.
 func (c RunnerConfig) batchSize() int {
-	bs, ok := c.Strategy.(BatchStrategy)
-	switch {
-	case !ok:
-		return 1
-	case c.BatchSize > 0:
+	if _, ok := c.Strategy.(BatchStrategy); ok && c.BatchSize > 1 {
 		return c.BatchSize
-	case bs.PreferredBatchSize() > 0:
-		return bs.PreferredBatchSize()
-	default:
-		return defaultBatchSize
 	}
+	return 1
 }
 
 // Runner orchestrates relevance grading. It:
 //   - Fetches articles per-query in one DB round-trip
 //   - Uses PoolStrategy.GradePool on the query's whole pool when supported
-//   - Otherwise uses BatchStrategy.GradeBatch when supported, falling back to per-doc
+//   - Otherwise grades one doc per request through Grade(), or, when BatchSize
+//     asks for more, through BatchStrategy.GradeBatch, falling back to per-doc
 //     Grade() for missing entries (Anthropic LLM-as-judge batched pattern)
 //   - Skips docs already graded in cfg.Existing (resume)
 //   - Streams results through Sink so callers can checkpoint to disk
