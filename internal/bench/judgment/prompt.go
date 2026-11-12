@@ -129,13 +129,10 @@ func truncateRunes(s string, max int) string {
 }
 
 // PromptVersion identifies the grading rubric. Bump this manually whenever the
-// system prompt or grading scale changes in a way that could shift grades.
-// bench judge embeds this in the annotations meta block so you can tell which
-// prompt version produced a given judgment file and catch rubric drift on resume.
-//
-// v2 added the per-category constraints. v3 sends the query's text, notes the
-// constraint the code already checked, and shares one rubric and content cut
-// between single and batched requests.
+// system prompt, the prompt builders or the grading scale change in a way that
+// could shift grades. bench judge embeds this in the annotations meta block so
+// you can tell which prompt version produced a given judgment file and catch
+// rubric drift on resume.
 const PromptVersion = "v3"
 
 // BuildBatchGradingPrompt is the user payload for grading docs in one request:

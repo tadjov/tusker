@@ -320,7 +320,7 @@ func TestClaudeAPIProvider_LeavesARefusedDocUnjudged(t *testing.T) {
 	doc := document.Article{ID: uuid.New(), Title: "Gunmen attack a village"}
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		partial, err := json.Marshal(`{"doc_id":"` + doc.ID.String() + `","grade":0}`)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		w.Header().Set("content-type", "application/json")
 		_, _ = w.Write([]byte(`{"type":"message","role":"assistant","content":[{"type":"text","text":` + string(partial) + `}],` +
 			`"stop_reason":"refusal","stop_details":{"type":"refusal","category":"general_harms","explanation":"declined"}}`))

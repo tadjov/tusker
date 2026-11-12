@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -337,7 +336,6 @@ func (p *claudeAPIProvider) Complete(ctx context.Context, cr CompletionRequest) 
 		if mr.StopDetails != nil {
 			category = mr.StopDetails.Category
 		}
-		slog.Warn("judge model refused the request", "model", p.model, "category", category)
 		return "", fmt.Errorf("%s refused the request (category %q)", p.model, category)
 	}
 	var text strings.Builder
@@ -352,8 +350,9 @@ func (p *claudeAPIProvider) Complete(ctx context.Context, cr CompletionRequest) 
 	return text.String(), nil
 }
 
-// messagesRequest leaves out sampling parameters and thinking, which current
-// models reject, so the model thinks adaptively at the pinned effort.
+// messagesRequest leaves out the sampling parameters, which current models
+// reject, and thinking, since Opus 5.5 rejects it disabled: the model thinks
+// adaptively at the pinned effort.
 type messagesRequest struct {
 	Model        string          `json:"model"`
 	MaxTokens    int             `json:"max_tokens"`

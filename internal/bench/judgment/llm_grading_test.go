@@ -3,6 +3,7 @@ package judgment
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -268,7 +269,7 @@ func TestLLMJudge_LeavesADocWithoutAGradeUnjudged(t *testing.T) {
 		reply func(missing, graded uuid.UUID, req CompletionRequest) string
 	}{
 		{name: "relevance instead of grade", batch: 2, reply: func(missing, graded uuid.UUID, req CompletionRequest) string {
-			if strings.Contains(req.User, "JSON array") {
+			if len(docIDsIn(req.User)) > 1 {
 				return `[{"doc_id":"` + missing.String() + `","relevance":3},{"doc_id":"` + graded.String() + `","grade":2}]`
 			}
 			return `{"doc_id":"` + missing.String() + `","relevance":3}`
@@ -297,11 +298,30 @@ func TestLLMJudge_LeavesADocWithoutAGradeUnjudged(t *testing.T) {
 	}
 }
 
+// A grade that fails is no grade: Grade reports it as unjudged, never as 0.
+func TestLLMJudge_GradeReportsAFailedGradeAsUnjudged(t *testing.T) {
+	tests := map[string]*fakeLLMProvider{
+		"the request fails":      {err: errors.New("connection refused")},
+		"the reply has no grade": {reply: func(CompletionRequest) string { return "I cannot grade this." }},
+	}
+	for name, provider := range tests {
+		t.Run(name, func(t *testing.T) {
+			grade, err := (&LLMStrategy{provider: provider}).Grade(context.Background(),
+				GradingQuery{ID: "q1", Text: "floods"}, GradingDoc{ID: uuid.New(), Title: "Floods reach Belgrade"})
+
+			require.Error(t, err)
+			assert.Equal(t, GradeUnjudged, grade)
+		})
+	}
+}
+
 // fakeLLMProvider grades every doc a request names with grade(doc), answering
-// a batch request with an array and a single-doc request with an object.
+// a request naming several docs with an array and one naming a single doc with
+// an object. A set err fails every request.
 type fakeLLMProvider struct {
 	grade func(uuid.UUID) int
 	reply func(CompletionRequest) string
+	err   error
 
 	mu   sync.Mutex
 	seen []CompletionRequest
@@ -316,6 +336,9 @@ func (f *fakeLLMProvider) Complete(_ context.Context, req CompletionRequest) (st
 	f.mu.Lock()
 	f.seen = append(f.seen, req)
 	f.mu.Unlock()
+	if f.err != nil {
+		return "", f.err
+	}
 	if f.reply != nil {
 		return f.reply(req), nil
 	}
@@ -325,7 +348,7 @@ func (f *fakeLLMProvider) Complete(_ context.Context, req CompletionRequest) (st
 	}
 	var out []byte
 	var err error
-	if strings.Contains(req.User, "JSON array") {
+	if len(entries) > 1 {
 		out, err = json.Marshal(entries)
 	} else {
 		out, err = json.Marshal(entries[0])

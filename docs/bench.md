@@ -343,9 +343,10 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   (`CLAUDE_CODE_SIMPLE` is `--bare`), so the two providers do not grade under one system
   prompt. It runs from a directory named after the request, since the CLI also tells the
   model its working directory.
-- `claude-api` sends `output_config.effort` and leaves out `temperature`, `top_p`, `top_k`,
-  `thinking` and server-side fallbacks. Current models reject the first four, and a fallback
-  would grade with a model the judge block does not name.
+- `claude-api` sends `output_config.effort` and leaves out `temperature`, `top_p` and
+  `top_k`, which current models reject, and `thinking`, since Opus 5.5 rejects it
+  `disabled`, so the model thinks adaptively at the effort. It sends no server-side
+  fallbacks, which would grade with a model the judge block does not name.
 
 Every suite query carries `text`, the query as a user would type it (`climate change`,
 `climate AND NOT politics`, or the phrase itself). `keyword` and `bm25` tokenize it,

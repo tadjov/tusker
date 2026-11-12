@@ -66,11 +66,11 @@ func (s *LLMStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc)
 		MaxTokens: llmMaxOutputTokens,
 	})
 	if err != nil {
-		return 0, err
+		return GradeUnjudged, err
 	}
 	grade, err := ParseGradeJSON(text, doc.ID.String())
 	if err != nil {
-		return 0, fmt.Errorf("doc %s: %w", doc.ID, err)
+		return GradeUnjudged, fmt.Errorf("doc %s: %w", doc.ID, err)
 	}
 	return grade, nil
 }
