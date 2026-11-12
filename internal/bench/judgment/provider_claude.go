@@ -108,15 +108,34 @@ func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
 	if err := requireEffort(ProviderClaudeCLI, opts.Effort); err != nil {
 		return nil, err
 	}
-	bin := opts.CLIBinary
-	if bin == "" {
-		bin = claudeDefaultBinary
+	name := opts.CLIBinary
+	if name == "" {
+		name = claudeDefaultBinary
+	}
+	bin, err := resolveCLIBinary(name)
+	if err != nil {
+		return nil, err
 	}
 	version, err := claudeCLIVersion(bin)
 	if err != nil {
 		return nil, err
 	}
 	return &claudeCLIProvider{binary: bin, version: version, model: model, effort: opts.Effort}, nil
+}
+
+// resolveCLIBinary finds the file name runs, through PATH and any symlink, once:
+// an auto-update re-points the claude link, and a run that looked it up per
+// grade could grade under a version the judge block does not name.
+func resolveCLIBinary(name string) (string, error) {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return "", fmt.Errorf("find the claude CLI %s: %w", name, err)
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve the claude CLI %s: %w", path, err)
+	}
+	return filepath.Abs(resolved)
 }
 
 // claudeCLIVersion is what the CLI reports with --version, so the judge block

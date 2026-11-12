@@ -337,7 +337,9 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   through `--system-prompt`. It signs in with the operator's claude.ai login (`--bare` would
   need `ANTHROPIC_API_KEY`). The judge block's `invocation` records what `claude --version`
   reports and the exact flags, not where the binary is installed, so `--resume` refuses a
-  file graded by another CLI version. The
+  file graded by another CLI version. The binary is resolved once, through `PATH` and its
+  symlink, and every grade of the run uses that file, so an auto-update mid-run does not
+  change the CLI. The
   CLI still adds the date, the OS version, a `cc_version` billing block and an Agent SDK
   preamble ahead of the rubric, which the claude.ai login cannot turn off
   (`CLAUDE_CODE_SIMPLE` is `--bare`), so the two providers do not grade under one system

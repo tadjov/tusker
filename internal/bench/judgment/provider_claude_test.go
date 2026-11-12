@@ -153,11 +153,45 @@ func TestClaudeCLIProvider_RecordsTheCLIVersionNotItsPath(t *testing.T) {
 	assert.Contains(t, installed.Invocation, "2.1.322 (Claude Code)")
 }
 
-func TestClaudeCLIProvider_FailsWithoutACLIToAskTheVersionOf(t *testing.T) {
-	_, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: filepath.Join(t.TempDir(), "no-claude-here"), Model: "sonnet", Effort: EffortLow})
+func TestClaudeCLIProvider_FailsWithoutACLI(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "no-claude-here")
+
+	_, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: missing, Model: "sonnet", Effort: EffortLow})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--version")
+	assert.Contains(t, err.Error(), missing)
+}
+
+// The CLI that answered --version grades the whole run: an auto-update that
+// re-points the claude link mid-run does not move later grades to a version
+// the judge block does not name.
+func TestClaudeCLIProvider_GradesOnTheBinaryItRecordedTheVersionOf(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	doc := GradingDoc{ID: uuid.New(), Title: "Floods reach Belgrade"}
+	reply := `{"doc_id":"` + doc.ID.String() + `","grade":2}`
+	installed, updated := newFakeClaudeCLI(t, reply), newFakeClaudeCLI(t, reply)
+	updated.version = "2.1.330 (Claude Code)"
+	updated.answer(t, reply)
+	link := filepath.Join(t.TempDir(), "claude")
+	require.NoError(t, os.Symlink(installed.path, link))
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: link, Model: "sonnet", Effort: EffortLow})
+	require.NoError(t, err)
+	grade := func() {
+		t.Helper()
+		_, err := s.Grade(context.Background(), GradingQuery{ID: "q1", Text: "floods"}, doc)
+		require.NoError(t, err)
+	}
+
+	grade()
+	require.NoError(t, os.Remove(link))
+	require.NoError(t, os.Symlink(updated.path, link))
+	grade()
+
+	assert.True(t, installed.graded(), "the recorded CLI grades")
+	assert.False(t, updated.graded(), "the CLI the link now points at never grades")
+	assert.Contains(t, s.Describe().Invocation, "2.1.322 (Claude Code)")
 }
 
 // A grade counts only when the pinned model made it: an answer the CLI got
@@ -275,6 +309,12 @@ type fakeCLICall struct {
 	disableAdvisor string
 	env            map[string]string
 	stdin          string
+}
+
+// graded reports whether the CLI was run to grade, not only asked its version.
+func (c *fakeClaudeCLI) graded() bool {
+	_, err := os.Stat(filepath.Join(c.recordDir, "args"))
+	return err == nil
 }
 
 func (c *fakeClaudeCLI) call(t *testing.T) fakeCLICall {
