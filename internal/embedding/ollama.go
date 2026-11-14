@@ -88,6 +88,34 @@ func (oc *OllamaClient) Generate(ctx context.Context, req Request) (*Response, e
 	return &resp, nil
 }
 
+func (oc *OllamaClient) GenerateBatch(ctx context.Context, req BatchRequest) (*BatchResponse, error) {
+	if len(req.Prompts) == 0 {
+		return nil, apperr.ValidationError{Err: fmt.Errorf("missing prompts to embed")}
+	}
+	if req.Model == "" {
+		return nil, apperr.ValidationError{Err: fmt.Errorf("missing model name")}
+	}
+
+	oReq := OllamaBatchRequest{
+		Model:   req.Model,
+		Input:   req.Prompts,
+		Options: req.Options,
+	}
+
+	var resp BatchResponse
+	if err := oc.do(ctx, http.MethodPost, "/api/embed", oReq, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+type OllamaBatchRequest struct {
+	Model   string         `json:"model"`
+	Input   []string       `json:"input"`
+	Options map[string]any `json:"options,omitempty"`
+}
+
 func (oc *OllamaClient) do(ctx context.Context, method, path string, reqData, respData any) error {
 	reqDataBytes, err := json.Marshal(reqData)
 	if err != nil {

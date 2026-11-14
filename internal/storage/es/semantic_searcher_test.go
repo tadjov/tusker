@@ -23,6 +23,10 @@ func (s staticEmbedder) Generate(_ context.Context, _ embedding.Request) (*embed
 	return &embedding.Response{Embedding: s.vec}, nil
 }
 
+func (s staticEmbedder) GenerateBatch(_ context.Context, _ embedding.BatchRequest) (*embedding.BatchResponse, error) {
+	return &embedding.BatchResponse{Embeddings: [][]float32{s.vec}}, nil
+}
+
 func newSemanticTestEnv(t *testing.T, queryVec []float32) (*Indexer, *Embedder, *SemanticSearcher) {
 	t.Helper()
 
