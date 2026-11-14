@@ -421,7 +421,7 @@ func TestPreprocess_RefusesAMistypedIdStrategyKey(t *testing.T) {
 	assert.NoDirExists(t, run.outputRoot)
 }
 
-func TestPreprocess_DerivesEachIDFromTheNormalisedURL(t *testing.T) {
+func TestPreprocess_DerivesEachIDFromThePageTheURLNames(t *testing.T) {
 	run := newPreprocessRun(t, ccNewsLikeMapping,
 		csvFile("part.csv", "title,text,url\nSpaced,Body,  https://example.com/a b \n"),
 	)
@@ -435,13 +435,14 @@ func TestPreprocess_DerivesEachIDFromTheNormalisedURL(t *testing.T) {
 	assert.Equal(t, "url", pkg.IDStrategy.Source)
 	namespace, err := uuid.Parse(pkg.IDStrategy.Namespace)
 	require.NoError(t, err)
-	assert.Equal(t, uuid.NewSHA1(namespace, []byte("https://example.com/a%20b")), rows.byURL["https://example.com/a%20b"].ID)
+	assert.Equal(t, uuid.NewSHA1(namespace, []byte("example.com/a%20b")), rows.byURL["https://example.com/a%20b"].ID)
 }
 
-func TestPreprocess_KeepsTheFirstOfRecordsSharingAURL(t *testing.T) {
+func TestPreprocess_KeepsTheFirstOfRecordsNamingOnePage(t *testing.T) {
 	run := newPreprocessRun(t, ccNewsLikeMapping,
 		csvFile("a.csv", "title,text,url\nFirst,Body,https://example.com/story\nOther,Body,https://example.com/other\n"),
-		csvFile("b.csv", "title,text,url\nRepeat,Body, https://Example.COM/story\nAgain,Body,https://example.com/other\n"),
+		csvFile("b.csv", "title,text,url\nRepeat,Body, https://Example.COM/story\nAgain,Body,https://example.com/other\n"+
+			"Variant,Body,http://www.example.com/story/?utm_source=feed#top\n"),
 	)
 
 	require.NoError(t, run.execute(t.Context()))
@@ -450,7 +451,7 @@ func TestPreprocess_KeepsTheFirstOfRecordsSharingAURL(t *testing.T) {
 	assert.Equal(t, []string{"https://example.com/story", "https://example.com/other"}, rows.urls)
 	assert.Equal(t, "First", rows.byURL["https://example.com/story"].Title)
 	assert.Equal(t, "Other", rows.byURL["https://example.com/other"].Title)
-	assert.Equal(t, &datapackage.Report{Read: 4, Written: 2, Deduped: 2}, pkg.Report)
+	assert.Equal(t, &datapackage.Report{Read: 5, Written: 2, Deduped: 3}, pkg.Report)
 }
 
 func TestPreprocess_DerivesThePublisherDomainFromTheURL(t *testing.T) {
@@ -593,7 +594,7 @@ func TestPreprocess_KeepsADatasetsOwnIDAsTheExternalID(t *testing.T) {
 	namespace, err := uuid.Parse(pkg.IDStrategy.Namespace)
 	require.NoError(t, err)
 	one := rows.byURL["https://example.com/1"]
-	assert.Equal(t, uuid.NewSHA1(namespace, []byte("https://example.com/1")), one.ID)
+	assert.Equal(t, uuid.NewSHA1(namespace, []byte("example.com/1")), one.ID)
 	assert.Equal(t, "89541", one.Metadata.ExternalID)
 	assert.Empty(t, rows.byURL["https://example.com/2"].Metadata.ExternalID)
 }
@@ -611,7 +612,7 @@ func TestPreprocess_DerivesIDsFromTheURLWhenTheMappingNamesNoStrategy(t *testing
 	assert.Equal(t, "url", pkg.IDStrategy.Source)
 	namespace, err := uuid.Parse(pkg.IDStrategy.Namespace)
 	require.NoError(t, err)
-	assert.Equal(t, uuid.NewSHA1(namespace, []byte("https://example.com/1")), rows.byURL["https://example.com/1"].ID)
+	assert.Equal(t, uuid.NewSHA1(namespace, []byte("example.com/1")), rows.byURL["https://example.com/1"].ID)
 }
 
 func TestPreprocess_OmitsTheRawVersionWhenTheRawPackageHasNone(t *testing.T) {
