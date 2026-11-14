@@ -26,12 +26,14 @@ type judgeFlags struct {
 	pg             string
 	concurrency    int
 	batchSize      int
+	batchSeed      uint64
 	resume         bool
 	allowUnjudged  bool
 	force          bool
 	apiKey         string
 	provider       string
 	model          string
+	effort         string
 	apiBaseURL     string
 	cliBinary      string
 	embeddingBase  string
@@ -61,7 +63,8 @@ func newJudgeCmdWithReader(openReader articleReaderOpener) *cobra.Command {
                 rest 0; doc vectors from PG (--pg), query vectors from
                 trec/query-vectors, else Ollama (EMBEDDING_BASE_URL)
   hybrid      — BM25 + vector fusion, vectors as for vector
-  llm         — LLM-as-judge, batched; pick the endpoint with --provider
+  llm         — LLM-as-judge, one doc per request (--batch N groups N);
+                pick the endpoint with --provider
   manual      — writes grade:-1 placeholders for hand grading; re-running keeps
                 existing hand grades and adds placeholders for new pool docs
                 (--force starts over)
@@ -70,10 +73,13 @@ The llm strategy is vendor-neutral: --provider names the endpoint
 (` + strings.Join(judgment.KnownProviders(), ", ") + `), and registering a new
 provider is all it takes to add Codex or ChatGPT.
 
---model accepts a full model id or a shorthand (` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `)
-and defaults to ` + judgment.DefaultJudgeModel + `. The resolved id, the
-provider and the prompt version are recorded in the artifact's judge block, so
-qrels always name the grader that produced them.
+--model takes a full model id or a shorthand for the current generation
+(` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `) and defaults to ` + judgment.DefaultJudgeModel + `,
+the model of the final cc-news judgments; --model haiku is the cheap option for
+trial runs. --effort sets how much the model may think before it grades
+(default low). The resolved id, the effort, the provider and the prompt version
+are recorded in the artifact's judge block, so qrels always name the grader
+that produced them.
 
 Output goes to <track>/trec/annotations.<strategy>.yaml, where <strategy> is the
 strategy for heuristic judges and the provider for llm judges.
@@ -85,7 +91,7 @@ graded. bm25, vector and hybrid grade the whole pool at once, so they skip only
 queries that are fully graded and regrade the rest whole. Atomic writes mean
 Ctrl-C is safe.`,
 		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy keyword
-  bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli
+  bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli --model sonnet
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
   bench judge --pool /tmp/p.yaml --strategy keyword --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
@@ -99,15 +105,18 @@ Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyKeyword), "Judge strategy")
 	cmd.Flags().StringVar(&f.pg, "pg", "", "Postgres connection (or set PG_CONNECTION_STRING)")
 	cmd.Flags().IntVar(&f.concurrency, "concurrency", 4, "Parallel Grade calls (per-doc strategies)")
-	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
+	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "LLM docs per request (default one); bm25, vector and hybrid refuse it")
+	cmd.Flags().Uint64Var(&f.batchSeed, "seed", 1, "Seed that shuffles each query's pool into --batch batches")
 	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output; bm25, vector and hybrid skip only fully graded queries")
 	cmd.Flags().BoolVar(&f.allowUnjudged, "allow-unjudged", false, "Exit 0 even when some pooled docs end unjudged; a query with no usable terms still fails")
 	cmd.Flags().BoolVar(&f.force, "force", false, "Manual only: discard existing hand grades and rewrite the placeholders")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")
 	cmd.Flags().StringVar(&f.provider, "provider", string(judgment.DefaultProvider),
 		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
-	cmd.Flags().StringVar(&f.model, "model", "",
-		"Judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); default "+judgment.DefaultJudgeModel)
+	cmd.Flags().StringVar(&f.model, "model", judgment.DefaultJudgeModel,
+		"LLM judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); haiku for cheap trial runs")
+	cmd.Flags().StringVar(&f.effort, "effort", string(judgment.EffortLow),
+		"Effort the llm judge's model grades at: "+strings.Join(judgment.KnownEfforts(), " | "))
 	cmd.Flags().StringVar(&f.apiBaseURL, "api-base", "", "Anthropic API base URL")
 	cmd.Flags().StringVar(&f.cliBinary, "cli-binary", "", "claude CLI binary path")
 	cmd.Flags().StringVar(&f.embeddingBase, "embedding-base", "", "Embedding endpoint for vector/hybrid (or EMBEDDING_BASE_URL)")
@@ -177,6 +186,11 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		CLIBinary:   f.cliBinary,
 		Concurrency: f.concurrency,
 	}
+	if kind == judgment.StrategyLLM {
+		if opts.Effort, err = judgment.ParseEffort(f.effort); err != nil {
+			return fmt.Errorf("--effort: %w", err)
+		}
+	}
 	if kind == judgment.StrategyVector || kind == judgment.StrategyHybrid {
 		store, model, closeStore, err := buildVectorStore(cmd.Context(), f, tr)
 		if err != nil {
@@ -197,62 +211,62 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		return err
 	}
 
+	cfg := judgment.RunnerConfig{
+		Strategy:    strat,
+		Reader:      reader,
+		Concurrency: f.concurrency,
+		BatchSize:   f.batchSize,
+		BatchSeed:   f.batchSeed,
+	}
 	// Every flush carries this meta, so a file left by an interrupted run names
 	// its run and grader.
-	judge := strat.Describe()
+	judge := cfg.Judge()
 	runMeta := meta.New("judge")
 	runMeta.Judge = &judge
 	runMeta.PoolRef = poolPath
 	runMeta.PoolRunID = pf.Meta.RunID
 	runMeta.RelevanceScale = []int{0, 1, 2, 3}
 	writer := judgment.NewIncrementalWriter(outPath, runMeta)
-	var prior *judgment.File
 	if f.resume {
-		prior, err = writer.LoadPrior(pf)
+		cfg.Existing, err = writer.LoadPrior(pf)
 		if err != nil {
 			return fmt.Errorf("load prior judgments: %w", err)
 		}
-		if prior != nil {
-			if err := checkResumeCompat(prior, strat); err != nil {
+		if cfg.Existing != nil {
+			if err := checkResumeCompat(cfg.Existing, judge); err != nil {
 				return err
 			}
-			if err := checkPoolBinding(prior.Meta.PoolRunID, pf); err != nil {
+			if err := checkPoolBinding(cfg.Existing.Meta.PoolRunID, pf); err != nil {
 				return fmt.Errorf("--resume: %w\n  • re-run without --resume to grade the current pool from scratch", err)
 			}
-			printWarn(cmd.OutOrStdout(), fmt.Sprintf("Resume: loaded %d prior queries from %s", len(prior.Queries), outPath))
+			printWarn(cmd.OutOrStdout(), fmt.Sprintf("Resume: loaded %d prior queries from %s", len(cfg.Existing.Queries), outPath))
 		}
 	}
-	jrunner := judgment.NewRunner(judgment.RunnerConfig{
-		Strategy:    strat,
-		Reader:      reader,
-		Concurrency: f.concurrency,
-		BatchSize:   f.batchSize,
-		Existing:    prior,
-		Sink:        writer.Append,
-		OnQueryStart: func(qid string, total, skipped int) {
-			if skipped > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs %s\n",
-					cCyan.Sprintf("[%s]", qid), total-skipped,
-					cDim.Sprintf("(%d already done)", skipped))
-			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs\n",
-					cCyan.Sprintf("[%s]", qid), total)
-			}
-		},
-		OnBatch: func(bp judgment.BatchProgress) {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %s batch %d/%d: graded=%d missing=%d %s\n",
-				cDim.Sprint("└"),
-				bp.BatchIdx, bp.BatchN, bp.Graded, bp.Missing,
-				cDim.Sprint(formatHistogram(bp.Histogram)))
-		},
-		OnQueryDone: func(qp judgment.QueryProgress) {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %s graded=%d skipped=%d unjudged=%d %s\n",
-				cCyan.Sprintf("[%s]", qp.QueryID),
-				cOK.Sprint("done:"),
-				qp.Graded, qp.Skipped, qp.Unjudged,
-				cDim.Sprint(formatHistogram(qp.Histogram)))
-		},
-	})
+	cfg.Sink = writer.Append
+	cfg.OnQueryStart = func(qid string, total, skipped int) {
+		if skipped > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs %s\n",
+				cCyan.Sprintf("[%s]", qid), total-skipped,
+				cDim.Sprintf("(%d already done)", skipped))
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s grading %d docs\n",
+				cCyan.Sprintf("[%s]", qid), total)
+		}
+	}
+	cfg.OnBatch = func(bp judgment.BatchProgress) {
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s batch %d/%d: graded=%d missing=%d %s\n",
+			cDim.Sprint("└"),
+			bp.BatchIdx, bp.BatchN, bp.Graded, bp.Missing,
+			cDim.Sprint(formatHistogram(bp.Histogram)))
+	}
+	cfg.OnQueryDone = func(qp judgment.QueryProgress) {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s graded=%d skipped=%d unjudged=%d %s\n",
+			cCyan.Sprintf("[%s]", qp.QueryID),
+			cOK.Sprint("done:"),
+			qp.Graded, qp.Skipped, qp.Unjudged,
+			cDim.Sprint(formatHistogram(qp.Histogram)))
+	}
+	jrunner := judgment.NewRunner(cfg)
 
 	final, runErr := jrunner.Run(cmd.Context(), pf)
 	if runErr != nil && !judgment.FailsWholeQuery(runErr) {
@@ -298,30 +312,22 @@ func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error
 		f.strategy, strings.Join(judgment.KnownJudgeStrategies(), ", "))
 }
 
-// checkResumeCompat verifies that a prior judgments file is safe to resume with
-// the given strategy. Any difference in the judge block — strategy, provider,
-// model, prompt version or rubric version — means the two runs disagree on who
-// is grading, and appending would corrupt the set.
-func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
-	was, now := prior.Judge(), strat.Describe()
-	if (was == meta.Judge{}) || was.Equal(now) {
+// checkResumeCompat verifies that a prior judgments file is safe to resume
+// under the judge block now. A difference in any field of the judge block means
+// the two runs disagree on who is grading, and appending would corrupt the set.
+func checkResumeCompat(prior *judgment.File, now meta.Judge) error {
+	was := prior.Judge()
+	if (was == meta.Judge{}) {
+		return nil
+	}
+	differences := was.Differences(now)
+	if len(differences) == 0 {
 		return nil
 	}
 	return fmt.Errorf(
-		"--resume judge mismatch: existing file was graded by %q, this run uses %q\n"+
+		"--resume judge mismatch: the existing file was graded by another judge (%s)\n"+
 			"  • re-run without --resume to re-grade cleanly under the new judge",
-		judgeWithVersions(was), judgeWithVersions(now))
-}
-
-func judgeWithVersions(j meta.Judge) string {
-	s := j.String()
-	if j.PromptVersion != "" {
-		s += " prompt " + j.PromptVersion
-	}
-	if j.RubricVersion != "" {
-		s += " rubric " + j.RubricVersion
-	}
-	return s
+		strings.Join(differences, "; "))
 }
 
 // buildVectorStore builds the vector/hybrid judges' store: query vectors from

@@ -11,6 +11,8 @@ set -euo pipefail
 # Unset it and pass a full path (tracks/<ds>/<track>) if you prefer.
 export BENCH_TRACK_ROOT="${BENCH_TRACK_ROOT:-tracks/global-news-dataset}"
 TRACK="${TRACK:-fts_quality}"
+# The model the LLM judge grades with; bench judge needs one named.
+JUDGE_MODEL="${JUDGE_MODEL:-sonnet}"
 
 # 0. Build
 make build-bench
@@ -31,12 +33,12 @@ make build-bench
 # 4a. Grade with the deterministic keyword baseline (no LLM, no API).
 ./bin/bench judge "$TRACK" --strategy keyword
 
-# 4b. ... OR with the Claude CLI per batch (cheap: bills through your Claude
-#     subscription). Model defaults to haiku; --model sonnet for a stronger judge.
-./bin/bench judge "$TRACK" --strategy llm --provider claude-cli --resume
+# 4b. ... OR with the Claude CLI, one doc per request (cheap: bills through your
+#     Claude subscription), on the model JUDGE_MODEL names.
+./bin/bench judge "$TRACK" --strategy llm --provider claude-cli --model "$JUDGE_MODEL" --resume
 
 # 4c. ... OR with the Anthropic API in batches (set ANTHROPIC_API_KEY).
-./bin/bench judge "$TRACK" --strategy llm --provider claude-api --batch 20 --resume
+./bin/bench judge "$TRACK" --strategy llm --provider claude-api --model "$JUDGE_MODEL" --batch 20 --resume
 
 # 4d. ... OR write -1 placeholders for hand grading.
 ./bin/bench judge "$TRACK" --strategy manual

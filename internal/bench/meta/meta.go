@@ -7,6 +7,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tadjov/tusker/internal/bench/version"
@@ -68,14 +71,67 @@ type Judge struct {
 	Provider      string `yaml:"provider,omitempty" json:"provider,omitempty"`
 	Model         string `yaml:"model,omitempty" json:"model,omitempty"`
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
+	// Effort is the effort level an LLM judge's model graded at.
+	Effort string `yaml:"effort,omitempty" json:"effort,omitempty"`
+	// MaxOutputTokens is an LLM judge's output budget for a request holding one
+	// doc; a batch's is in Batching.
+	MaxOutputTokens int `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"`
+	// Invocation is how an LLM judge reached its model: the exact command line,
+	// or the API version and effort.
+	Invocation string `yaml:"invocation,omitempty" json:"invocation,omitempty"`
+	// Batching is set when an LLM judge grades several docs per request.
+	Batching *Batching `yaml:"batching,omitempty" json:"batching,omitempty"`
+	// GateVersion names the phrase, boolean and filter gates the keyword, bm25
+	// and LLM judges' zeros come from.
+	GateVersion string `yaml:"gate_version,omitempty" json:"gate_version,omitempty"`
 	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
 	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
+}
+
+// Batching is how many docs an LLM judge put in one request, the seed that
+// shuffled each query's pool into those batches, and a batch's output budget.
+type Batching struct {
+	Size            int    `yaml:"size" json:"size"`
+	Seed            uint64 `yaml:"seed" json:"seed"`
+	MaxOutputTokens int    `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"`
+}
+
+func (b Batching) String() string {
+	return fmt.Sprintf("size %d, seed %d, %d tokens", b.Size, b.Seed, b.MaxOutputTokens)
 }
 
 // Equal reports whether two judges would produce comparable grades. Used by the
 // resume guard: any difference means the existing file and the current run
 // disagree on who is grading, so appending would corrupt the set.
-func (j Judge) Equal(other Judge) bool { return j == other }
+func (j Judge) Equal(other Judge) bool { return len(j.Differences(other)) == 0 }
+
+// Differences names, by its YAML key, each field in which other differs from
+// j, with both values: `effort: was "low", now "high"`.
+func (j Judge) Differences(other Judge) []string {
+	was, now := reflect.ValueOf(j), reflect.ValueOf(other)
+	var out []string
+	for i := range was.NumField() {
+		if reflect.DeepEqual(was.Field(i).Interface(), now.Field(i).Interface()) {
+			continue
+		}
+		key, _, _ := strings.Cut(was.Type().Field(i).Tag.Get("yaml"), ",")
+		out = append(out, fmt.Sprintf("%s: was %s, now %s", key, judgeValue(was.Field(i)), judgeValue(now.Field(i))))
+	}
+	return out
+}
+
+func judgeValue(v reflect.Value) string {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return "none"
+		}
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.String {
+		return strconv.Quote(v.String())
+	}
+	return fmt.Sprint(v.Interface())
+}
 
 // String renders the judge for CLI output, e.g. "llm-cli/claude
 // claude-haiku-4-5-20251001" or plain "keyword".

@@ -1,14 +1,8 @@
 package judgment
 
 import (
-	"context"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
 )
 
 func TestParseSelector(t *testing.T) {
@@ -128,14 +122,13 @@ func TestJudgmentSetNameRoundTrips(t *testing.T) {
 
 func TestResolveClaudeModelAliases(t *testing.T) {
 	tests := []struct{ in, want string }{
-		{in: "", want: DefaultJudgeModel},
-		{in: "haiku", want: DefaultJudgeModel},
-		{in: "HAIKU", want: DefaultJudgeModel},
-		{in: "sonnet", want: "claude-sonnet-5"},
-		{in: "opus", want: "claude-opus-5"},
+		{in: "haiku", want: "claude-haiku-5-5"},
+		{in: "HAIKU", want: "claude-haiku-5-5"},
+		{in: "sonnet", want: "claude-sonnet-5-5"},
+		{in: "opus", want: "claude-opus-5-5"},
+		{in: "fable", want: "claude-fable-5-2"},
 		// A full id passes through untouched.
-		{in: "claude-haiku-4-5-20251001", want: "claude-haiku-4-5-20251001"},
-		{in: "some-future-model", want: "some-future-model"},
+		{in: "claude-sonnet-5", want: "claude-sonnet-5"},
 	}
 
 	for _, tc := range tests {
@@ -145,10 +138,50 @@ func TestResolveClaudeModelAliases(t *testing.T) {
 	}
 }
 
-func TestLLMDescribeDefaultsToHaiku(t *testing.T) {
+// The library grades with the model it is given, so an empty one fails
+// naming the flag rather than falling back to a model nobody named.
+func TestLLMRefusesAnEmptyModel(t *testing.T) {
 	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
 		t.Run(string(provider), func(t *testing.T) {
-			s, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key"})
+			_, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", Effort: EffortLow})
+
+			if err == nil || !strings.Contains(err.Error(), "--model") {
+				t.Errorf("NewLLMStrategy with an empty model: err = %v, want one naming --model", err)
+			}
+		})
+	}
+}
+
+// The effort a model grades at shifts its grades, so none is assumed either.
+func TestLLMRequiresAnEffort(t *testing.T) {
+	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
+		t.Run(string(provider), func(t *testing.T) {
+			_, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", Model: "claude-sonnet-5-5"})
+
+			if err == nil || !strings.Contains(err.Error(), "--effort") {
+				t.Errorf("NewLLMStrategy without an effort: err = %v, want one naming --effort", err)
+			}
+		})
+	}
+}
+
+func TestParseEffort(t *testing.T) {
+	for _, level := range []string{"low", "medium", "high", "xhigh", "max"} {
+		if got, err := ParseEffort(level); err != nil || string(got) != level {
+			t.Errorf("ParseEffort(%q) = (%q, %v), want %q", level, got, err, level)
+		}
+	}
+	for _, bad := range []string{"", "LOW", "none", "minimal"} {
+		if _, err := ParseEffort(bad); err == nil {
+			t.Errorf("ParseEffort(%q) succeeded, want an error", bad)
+		}
+	}
+}
+
+func TestLLMDescribeNamesTheModelItWasGiven(t *testing.T) {
+	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
+		t.Run(string(provider), func(t *testing.T) {
+			s, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", CLIBinary: versionOnlyClaudeCLI(t), Model: "claude-haiku-5-5", Effort: EffortLow})
 			if err != nil {
 				t.Fatalf("NewLLMStrategy: %v", err)
 			}
@@ -160,11 +193,14 @@ func TestLLMDescribeDefaultsToHaiku(t *testing.T) {
 			if got.Provider != string(provider) {
 				t.Errorf("Provider = %q, want %q", got.Provider, provider)
 			}
-			if got.Model != DefaultJudgeModel {
-				t.Errorf("Model = %q, want %q", got.Model, DefaultJudgeModel)
+			if got.Model != "claude-haiku-5-5" {
+				t.Errorf("Model = %q, want %q", got.Model, "claude-haiku-5-5")
 			}
 			if got.PromptVersion != PromptVersion {
 				t.Errorf("PromptVersion = %q, want %q", got.PromptVersion, PromptVersion)
+			}
+			if got.Effort != "low" {
+				t.Errorf("Effort = %q, want %q", got.Effort, "low")
 			}
 		})
 	}
@@ -172,7 +208,7 @@ func TestLLMDescribeDefaultsToHaiku(t *testing.T) {
 
 // An omitted provider must still yield a usable judge rather than an error.
 func TestLLMDefaultProvider(t *testing.T) {
-	s, err := NewLLMStrategy(StrategyOptions{})
+	s, err := NewLLMStrategy(StrategyOptions{CLIBinary: versionOnlyClaudeCLI(t), Model: "claude-haiku-5-5", Effort: EffortLow})
 	if err != nil {
 		t.Fatalf("NewLLMStrategy: %v", err)
 	}
@@ -185,31 +221,13 @@ func TestLLMDefaultProvider(t *testing.T) {
 // --model takes an alias; the judge block must record the expanded id, since an
 // alias would silently re-point at a different model later.
 func TestLLMModelAliasRecordedAsFullID(t *testing.T) {
-	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, Model: "sonnet"})
+	s, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI, CLIBinary: versionOnlyClaudeCLI(t), Model: "sonnet", Effort: EffortLow})
 	if err != nil {
 		t.Fatalf("NewLLMStrategy: %v", err)
 	}
 
-	if got := s.Describe().Model; got != "claude-sonnet-5" {
-		t.Errorf("Model = %q, want %q", got, "claude-sonnet-5")
-	}
-}
-
-func TestLLMBatchSizeFollowsProvider(t *testing.T) {
-	cli, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeCLI})
-	if err != nil {
-		t.Fatalf("NewLLMStrategy(cli): %v", err)
-	}
-	api, err := NewLLMStrategy(StrategyOptions{Provider: ProviderClaudeAPI, APIKey: "k"})
-	if err != nil {
-		t.Fatalf("NewLLMStrategy(api): %v", err)
-	}
-
-	if cli.PreferredBatchSize() != claudeCLIBatchSize {
-		t.Errorf("cli batch = %d, want %d", cli.PreferredBatchSize(), claudeCLIBatchSize)
-	}
-	if api.PreferredBatchSize() != claudeAPIBatchSize {
-		t.Errorf("api batch = %d, want %d", api.PreferredBatchSize(), claudeAPIBatchSize)
+	if got := s.Describe().Model; got != "claude-sonnet-5-5" {
+		t.Errorf("Model = %q, want %q", got, "claude-sonnet-5-5")
 	}
 }
 
@@ -217,71 +235,4 @@ func TestLLMStrategyUnknownProvider(t *testing.T) {
 	if _, err := NewLLMStrategy(StrategyOptions{Provider: "codex-cli"}); err == nil {
 		t.Error("NewLLMStrategy with unregistered provider should fail")
 	}
-}
-
-// TestLLMCLIProviderPassesModelFlag is the behavioural guard: the model must reach the
-// subprocess as `--model <id>`, not be inherited from the CLI's ambient config.
-func TestLLMCLIProviderPassesModelFlag(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("fake binary is a POSIX shell script")
-	}
-
-	docID := uuid.New()
-	argsFile := filepath.Join(t.TempDir(), "args.txt")
-	bin := writeFakeCLI(t, argsFile, `[{"doc_id":"`+docID.String()+`","grade":2}]`)
-
-	s, err := NewLLMStrategy(StrategyOptions{
-		Provider:  ProviderClaudeCLI,
-		CLIBinary: bin,
-		Model:     "sonnet",
-	})
-	if err != nil {
-		t.Fatalf("NewLLMStrategy: %v", err)
-	}
-
-	graded, err := s.GradeBatch(context.Background(),
-		GradingQuery{ID: "q1", Description: "climate change"},
-		[]GradingDoc{{ID: docID, Title: "Some title"}},
-	)
-	if err != nil {
-		t.Fatalf("GradeBatch: %v", err)
-	}
-	if len(graded) != 1 || graded[0].Grade != 2 {
-		t.Fatalf("GradeBatch = %+v, want one doc graded 2", graded)
-	}
-
-	recorded, err := os.ReadFile(argsFile)
-	if err != nil {
-		t.Fatalf("read recorded args: %v", err)
-	}
-	got := string(recorded)
-
-	if !strings.Contains(got, "--model claude-sonnet-5") {
-		t.Errorf("subprocess args %q missing `--model claude-sonnet-5`", got)
-	}
-	if !strings.Contains(got, "-p") {
-		t.Errorf("subprocess args %q missing `-p`", got)
-	}
-}
-
-// writeFakeCLI creates a stand-in vendor CLI that records the flags it was
-// called with (every argument up to and including -p, so the prompt body stays
-// out of the fixture) and prints a canned grading response.
-func writeFakeCLI(t *testing.T, argsFile, stdout string) string {
-	t.Helper()
-
-	script := `#!/bin/sh
-for a in "$@"; do
-  printf '%s ' "$a" >> "` + argsFile + `"
-  [ "$a" = "-p" ] && break
-done
-cat <<'JSON'
-` + stdout + `
-JSON
-`
-	path := filepath.Join(t.TempDir(), "fake-cli")
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake cli: %v", err)
-	}
-	return path
 }

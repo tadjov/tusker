@@ -3,6 +3,7 @@ package judgment
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -17,6 +18,35 @@ const (
 	ProviderClaudeCLI Provider = "claude-cli"
 	ProviderClaudeAPI Provider = "claude-api"
 )
+
+// Effort is how much a judge model may think before it grades.
+type Effort string
+
+const (
+	EffortLow    Effort = "low"
+	EffortMedium Effort = "medium"
+	EffortHigh   Effort = "high"
+	EffortXHigh  Effort = "xhigh"
+	EffortMax    Effort = "max"
+)
+
+var efforts = []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax}
+
+func ParseEffort(s string) (Effort, error) {
+	if slices.Contains(efforts, Effort(s)) {
+		return Effort(s), nil
+	}
+	return "", fmt.Errorf("unknown effort %q (known: %s)", s, strings.Join(KnownEfforts(), ", "))
+}
+
+// KnownEfforts lists the effort levels, lowest first.
+func KnownEfforts() []string {
+	names := make([]string, len(efforts))
+	for i, e := range efforts {
+		names[i] = string(e)
+	}
+	return names
+}
 
 // CompletionRequest is one grading call: a system prompt setting the rubric and
 // a user payload carrying the query plus candidates.
@@ -33,9 +63,10 @@ type LLMProvider interface {
 	// "haiku" is expanded at construction, so this always names a concrete
 	// model for the artifact's judge block.
 	Model() string
-	// PreferredBatchSize is how many candidates this endpoint grades well in one
-	// call. Subprocess transports favour smaller batches than HTTP ones.
-	PreferredBatchSize() int
+	Effort() Effort
+	// Invocation is the exact command line or request version a call runs
+	// with, recorded in the judge block.
+	Invocation() string
 	// Complete sends one prompt and returns the assistant's raw text.
 	Complete(ctx context.Context, req CompletionRequest) (string, error)
 }

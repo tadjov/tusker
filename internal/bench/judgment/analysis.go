@@ -173,6 +173,11 @@ func scoringTerms(texts ...string) []string {
 	return slices.Compact(out)
 }
 
+// gateVersion names the rules of the phrase, boolean and filter gates: bump it
+// whenever a gate admits or refuses a doc it did not before, so a judge
+// recording it refuses to resume a file graded under other gates.
+const gateVersion = "v1"
+
 // termQuery is a query as the keyword and bm25 judges read it: the terms that
 // score a document, and the filters and category gate a document must pass to
 // score at all.

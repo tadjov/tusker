@@ -51,8 +51,8 @@ type DocStrategy interface {
 }
 
 // BatchStrategy is an optional capability: strategies that can grade N docs
-// in a single LLM call should implement it. The runner detects it via type
-// assertion and prefers GradeBatch over Grade when present.
+// in a single LLM call implement it. The runner calls GradeBatch only when
+// RunnerConfig.BatchSize asks for more than one doc per request.
 //
 // The pattern follows Anthropic's "LLM as judge — batched" cookbook:
 //   - one system prompt sets the rubric
@@ -64,7 +64,8 @@ type DocStrategy interface {
 // docs through Grade() as a fallback.
 type BatchStrategy interface {
 	DocStrategy
-	PreferredBatchSize() int
+	// BatchMaxOutputTokens is the output budget of one batch request.
+	BatchMaxOutputTokens() int
 	GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error)
 }
 
@@ -103,10 +104,13 @@ type StrategyOptions struct {
 	// Provider selects the endpoint behind StrategyLLM. Empty means
 	// DefaultProvider.
 	Provider Provider
-	// Model is the judge model — a full id or a provider alias such as "haiku".
-	// Empty means the provider's default. The provider expands it, so the judge
-	// block always records a concrete id.
-	Model       string
+	// Model is the judge model — a full id or a provider alias such as "sonnet".
+	// An LLM judge needs one. The provider expands it, so the judge block always
+	// records a concrete id.
+	Model string
+	// Effort is the effort level an LLM judge's model grades at; an LLM judge
+	// needs one.
+	Effort      Effort
 	APIBaseURL  string
 	CLIBinary   string
 	Concurrency int

@@ -8,9 +8,12 @@ import (
 	"github.com/tadjov/tusker/internal/bench/meta"
 )
 
+// Output budgets leave room for adaptive thinking at any effort before the
+// JSON grades, and stay under the ~21,333 max_tokens the CLI's SDK sends
+// without streaming.
 const (
-	llmMaxOutputTokens      = 64
-	llmBatchMaxOutputTokens = 4096
+	llmMaxOutputTokens      = 16000
+	llmBatchMaxOutputTokens = 20000
 )
 
 // LLMStrategy is the LLM-as-judge strategy. It owns the rubric, batching and
@@ -36,56 +39,83 @@ func (s *LLMStrategy) Name() string { return string(StrategyLLM) }
 // name a concrete model and the resume guard can catch a grader swap.
 func (s *LLMStrategy) Describe() meta.Judge {
 	return meta.Judge{
-		Strategy:      string(StrategyLLM),
-		Provider:      string(s.provider.Name()),
-		Model:         s.provider.Model(),
-		PromptVersion: PromptVersion,
+		Strategy:        string(StrategyLLM),
+		Provider:        string(s.provider.Name()),
+		Model:           s.provider.Model(),
+		PromptVersion:   PromptVersion,
+		GateVersion:     gateVersion,
+		Effort:          string(s.provider.Effort()),
+		MaxOutputTokens: llmMaxOutputTokens,
+		Invocation:      s.provider.Invocation(),
 	}
 }
 
+// Grade gives 0 without a request to a doc the query's filters or category
+// gate refuse; the model grades only how well the rest answer the query.
 func (s *LLMStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
+	tq, err := readTermQuery(q)
+	if err != nil {
+		return GradeUnjudged, err
+	}
+	if !tq.admits(analyzeDoc(doc)) {
+		return GradeNotRelev, nil
+	}
 	text, err := s.provider.Complete(ctx, CompletionRequest{
 		System:    systemPrompt,
 		User:      BuildGradingPrompt(q, doc),
 		MaxTokens: llmMaxOutputTokens,
 	})
 	if err != nil {
-		return 0, err
+		return GradeUnjudged, err
 	}
 	grade, err := ParseGradeJSON(text, doc.ID.String())
 	if err != nil {
-		return 0, fmt.Errorf("doc %s: %w", doc.ID, err)
+		return GradeUnjudged, fmt.Errorf("doc %s: %w", doc.ID, err)
 	}
 	return grade, nil
 }
 
-func (s *LLMStrategy) PreferredBatchSize() int { return s.provider.PreferredBatchSize() }
+func (s *LLMStrategy) BatchMaxOutputTokens() int { return llmBatchMaxOutputTokens }
 
-// GradeBatch implements BatchStrategy. One provider call per batch; the caller
-// (judgment.Runner) chunks and handles docs that come back missing or malformed.
+// GradeBatch implements BatchStrategy, gating docs as Grade does: one provider
+// call per batch for the docs the gate admits, none when it admits none.
 func (s *LLMStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
-	if len(docs) == 0 {
-		return nil, nil
+	tq, err := readTermQuery(q)
+	if err != nil {
+		return nil, err
+	}
+	var refused []GradedDoc
+	var admitted []GradingDoc
+	for _, d := range docs {
+		if tq.admits(analyzeDoc(d)) {
+			admitted = append(admitted, d)
+		} else {
+			refused = append(refused, GradedDoc{DocID: d.ID, Grade: GradeNotRelev})
+		}
+	}
+	if len(admitted) == 0 {
+		return refused, nil
 	}
 	text, err := s.provider.Complete(ctx, CompletionRequest{
-		System:    BatchSystemPrompt,
-		User:      BuildBatchGradingPrompt(q, docs),
+		System:    systemPrompt,
+		User:      BuildBatchGradingPrompt(q, admitted),
 		MaxTokens: llmBatchMaxOutputTokens,
 	})
 	if err != nil {
 		return nil, err
 	}
-	parsed, missing, err := ParseBatchGradeJSON(text, docs)
+	parsed, missing, err := ParseBatchGradeJSON(text, admitted)
 	if err != nil {
 		return nil, fmt.Errorf("batch parse: %w", err)
 	}
+	graded := append(refused, parsed...)
 	if len(missing) > 0 {
 		// Surface partial-success: the Runner retries the missing IDs
 		// individually via Grade(). Returning nil error here would discard the
 		// parsed entries, so wrap as a typed sentinel.
-		return parsed, &PartialBatchError{Missing: missing, Got: len(parsed), Want: len(docs)}
+		return graded, &PartialBatchError{Missing: missing, Got: len(graded), Want: len(docs)}
 	}
-	return parsed, nil
+	return graded, nil
 }
 
 // PartialBatchError lets the runner distinguish "the LLM returned only part of

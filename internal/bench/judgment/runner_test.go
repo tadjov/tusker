@@ -51,7 +51,6 @@ func (f *fakeStrategy) Grade(_ context.Context, _ GradingQuery, _ GradingDoc) (i
 // to drop docs (partial response) or fail outright.
 type fakeBatchStrategy struct {
 	name           string
-	batchSize      int
 	dropFirstN     int // number of docs in each batch to omit from the response
 	batchErr       error
 	perDocGrade    int
@@ -65,7 +64,7 @@ func (f *fakeBatchStrategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: f.name}
 }
 
-func (f *fakeBatchStrategy) PreferredBatchSize() int { return f.batchSize }
+func (f *fakeBatchStrategy) BatchMaxOutputTokens() int { return 0 }
 func (f *fakeBatchStrategy) Grade(_ context.Context, _ GradingQuery, _ GradingDoc) (int, error) {
 	f.mu.Lock()
 	f.perDocCalls++
@@ -113,11 +112,12 @@ func buildPool(t *testing.T, n int) (*pool.PoolFile, map[uuid.UUID]document.Arti
 
 func TestRunner_BatchedHappyPath(t *testing.T) {
 	pf, articles := buildPool(t, 25)
-	bs := &fakeBatchStrategy{name: "fake-batch", batchSize: 10}
+	bs := &fakeBatchStrategy{name: "fake-batch"}
 
 	r := NewRunner(RunnerConfig{
-		Strategy: bs,
-		Reader:   &stubStorageReader{articles: articles},
+		Strategy:  bs,
+		BatchSize: 10,
+		Reader:    &stubStorageReader{articles: articles},
 	})
 	jf, err := r.Run(context.Background(), pf)
 	require.NoError(t, err)
@@ -132,12 +132,13 @@ func TestRunner_BatchedPartialFallsBackPerDoc(t *testing.T) {
 	pf, articles := buildPool(t, 10)
 	// Drop the first 2 docs of each batch → 2 missing per call → 2 per-doc retries
 	bs := &fakeBatchStrategy{
-		name: "fake-batch", batchSize: 10, dropFirstN: 2, perDocGrade: 1,
+		name: "fake-batch", dropFirstN: 2, perDocGrade: 1,
 	}
 
 	r := NewRunner(RunnerConfig{
-		Strategy: bs,
-		Reader:   &stubStorageReader{articles: articles},
+		Strategy:  bs,
+		BatchSize: 10,
+		Reader:    &stubStorageReader{articles: articles},
 	})
 	jf, err := r.Run(context.Background(), pf)
 	require.NoError(t, err)
@@ -158,11 +159,10 @@ func TestRunner_BatchHardFailureFallsBackPerDoc(t *testing.T) {
 	pf, articles := buildPool(t, 5)
 	bs := &fakeBatchStrategy{
 		name:        "fake-batch",
-		batchSize:   10,
 		batchErr:    errors.New("kaboom"),
 		perDocGrade: 3,
 	}
-	r := NewRunner(RunnerConfig{Strategy: bs, Reader: &stubStorageReader{articles: articles}})
+	r := NewRunner(RunnerConfig{Strategy: bs, BatchSize: 10, Reader: &stubStorageReader{articles: articles}})
 	jf, err := r.Run(context.Background(), pf)
 	require.NoError(t, err)
 	assert.Equal(t, 5, bs.perDocCalls)
@@ -173,7 +173,7 @@ func TestRunner_BatchHardFailureFallsBackPerDoc(t *testing.T) {
 
 func TestRunner_ResumeSkipsAlreadyGraded(t *testing.T) {
 	pf, articles := buildPool(t, 5)
-	bs := &fakeBatchStrategy{name: "fake-batch", batchSize: 10}
+	bs := &fakeBatchStrategy{name: "fake-batch"}
 
 	// Pre-grade the first 3 docs
 	prior := &File{
@@ -191,9 +191,10 @@ func TestRunner_ResumeSkipsAlreadyGraded(t *testing.T) {
 	}
 
 	r := NewRunner(RunnerConfig{
-		Strategy: bs,
-		Reader:   &stubStorageReader{articles: articles},
-		Existing: prior,
+		Strategy:  bs,
+		BatchSize: 10,
+		Reader:    &stubStorageReader{articles: articles},
+		Existing:  prior,
 	})
 	jf, err := r.Run(context.Background(), pf)
 	require.NoError(t, err)
@@ -228,7 +229,7 @@ func TestRunner_MissingArticleStaysUnjudged(t *testing.T) {
 	delete(articles, missingID)
 
 	r := NewRunner(RunnerConfig{
-		Strategy: &fakeBatchStrategy{name: "fake-batch", batchSize: 10},
+		Strategy: &fakeBatchStrategy{name: "fake-batch"},
 		Reader:   &stubStorageReader{articles: articles},
 	})
 	jf, err := r.Run(context.Background(), pf)
@@ -243,7 +244,7 @@ func TestRunner_MissingArticleStaysUnjudged(t *testing.T) {
 
 func TestRunner_SinkCalledPerQuery(t *testing.T) {
 	pf, articles := buildPool(t, 2)
-	bs := &fakeBatchStrategy{name: "fake-batch", batchSize: 10}
+	bs := &fakeBatchStrategy{name: "fake-batch"}
 
 	calls := 0
 	r := NewRunner(RunnerConfig{
@@ -319,7 +320,7 @@ func TestRunner_PoolQueryWithoutTextFailsBeforeGrading(t *testing.T) {
 	sunk := false
 
 	_, err := NewRunner(RunnerConfig{
-		Strategy: &fakeBatchStrategy{name: "fake-batch", batchSize: 10},
+		Strategy: &fakeBatchStrategy{name: "fake-batch"},
 		Reader:   &stubStorageReader{articles: articles},
 		Sink:     func(QueryProgress, Entry) error { sunk = true; return nil },
 	}).Run(context.Background(), pf)
