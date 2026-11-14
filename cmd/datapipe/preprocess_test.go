@@ -525,6 +525,26 @@ func TestPreprocess_RerunOverTheSameInputsKeepsTheExistingPackage(t *testing.T) 
 	assert.Equal(t, firstHash, sha256Of(t, resourcePath))
 }
 
+func TestPreprocess_RestoresTheResourceOfAPackageCheckedOutWithoutIt(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping,
+		csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\nTwo,Body,https://example.com/2\n"),
+	)
+	require.NoError(t, run.execute(t.Context()))
+	dir := run.packageDir(t)
+	resourcePath := filepath.Join(dir, "articles.parquet")
+	firstHash := sha256Of(t, resourcePath)
+	descriptor, err := os.ReadFile(filepath.Join(dir, "datapackage.json"))
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(resourcePath))
+
+	require.NoError(t, run.execute(t.Context()))
+
+	assert.Equal(t, firstHash, sha256Of(t, resourcePath))
+	after, err := os.ReadFile(filepath.Join(dir, "datapackage.json"))
+	require.NoError(t, err)
+	assert.Equal(t, string(descriptor), string(after))
+}
+
 func TestPreprocess_TwoRunsOverOneRawPackageWriteIdenticalBytes(t *testing.T) {
 	run := newPreprocessRun(t, ccNewsLikeMapping,
 		parquetFile(t, "train-0.parquet",

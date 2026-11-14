@@ -146,7 +146,9 @@ func renderSummary(w io.Writer, result datapackage.Published, elapsed time.Durat
 	if dropped > 0 {
 		cli.Warn(w, fmt.Sprintf("%d dropped: %s", dropped, dropBreakdown(report.Dropped)))
 	}
-	if result.Existing {
+	if result.Restored {
+		cli.Done(w, "version "+result.Package.Version+" was published without its resource; restored it from this run")
+	} else if result.Existing {
 		cli.Done(w, "version "+result.Package.Version+" was already published; kept it and discarded this run's copy")
 	}
 }
