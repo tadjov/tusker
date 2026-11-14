@@ -18,10 +18,6 @@ func (c *recordingClient) Generate(_ context.Context, req embedding.Request) (*e
 	return &embedding.Response{Embedding: unit}, nil
 }
 
-func (c *recordingClient) GenerateBatch(context.Context, embedding.BatchRequest) (*embedding.BatchResponse, error) {
-	return &embedding.BatchResponse{}, nil
-}
-
 func TestNewQueryEmbedder_AsksForThePlainModelAndTagsTheWidth(t *testing.T) {
 	tests := []struct {
 		name        string
