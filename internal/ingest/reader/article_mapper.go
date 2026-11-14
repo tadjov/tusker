@@ -72,7 +72,7 @@ func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) 
 		}
 	}
 
-	article.ID = document.DeriveArticleID(article.URL)
+	article.ID = document.DeriveArticleID(URLIdentity(article.URL))
 	article.PublisherDomain = PublisherDomain(article.URL)
 	return article, nil
 }
