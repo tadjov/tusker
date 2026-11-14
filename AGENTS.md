@@ -124,14 +124,6 @@ Follows idiomatic Go patterns with sub-package organization:
 - Separate interfaces for search and indexing operations
 - Clean file naming without redundant prefixes
 
-### Pipeline Architecture
-Uses a pipeline pattern for data processing with common interfaces:
-1. Reader loads and parses source data
-2. Mapper transforms data according to configuration
-3. Collector orchestrates the process
-4. Factory creates storage instances based on configuration
-5. Storage persists the articles with bulk operations support
-
 ### Bench CLI (`cmd/bench/`)
 
 TREC-style IR evaluation pipeline. Full docs: [docs/bench.md](docs/bench.md).
