@@ -3,12 +3,15 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow.parquet as pq
+import pytest
 from conftest import (
     article,
     model_args,
     run_script,
     write_canonical_package,
 )
+
+pytestmark = pytest.mark.usefixtures("descriptors_match_the_schema")
 
 SUITE = """\
 schema_version: 1

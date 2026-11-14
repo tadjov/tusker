@@ -4,15 +4,18 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+import jsonschema
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPTS))
+DESCRIPTOR_SCHEMA = SCRIPTS.parent / "api" / "datapackage-spec" / "datapackage-v1.json"
 TINY_MODEL_NAME = "qwen3-embedding:tiny"
 TINY_REVISION = "test-rev"
 EOS = "<|endoftext|>"
@@ -176,6 +179,15 @@ def model_args(model: Path) -> list[str]:
 @pytest.fixture
 def tiny_model_args(tiny_model: Path) -> list[str]:
     return model_args(tiny_model)
+
+
+@pytest.fixture
+def descriptors_match_the_schema(tmp_path: Path) -> Iterator[None]:
+    """Validates every descriptor left under tmp_path once the test ends."""
+    yield
+    schema = json.loads(DESCRIPTOR_SCHEMA.read_text(encoding="utf-8"))
+    for descriptor in sorted(tmp_path.rglob("*datapackage.json")):
+        jsonschema.validate(json.loads(descriptor.read_text(encoding="utf-8")), schema)
 
 
 def run_script(script: str, *args: str | Path) -> subprocess.CompletedProcess[str]:

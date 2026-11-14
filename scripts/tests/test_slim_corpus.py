@@ -1,7 +1,10 @@
 import json
 
 import pyarrow.parquet as pq
+import pytest
 from conftest import article, run_script, sha256_of, write_canonical_package
+
+pytestmark = pytest.mark.usefixtures("descriptors_match_the_schema")
 
 ROWS = [
     article(

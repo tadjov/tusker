@@ -14,6 +14,8 @@ from conftest import (
 )
 from embed_corpus import Article
 
+pytestmark = pytest.mark.usefixtures("descriptors_match_the_schema")
+
 ROWS = [
     article(
         "6f1c2b8e-0d5a-4a57-9a0e-1b2c3d4e5f60",
