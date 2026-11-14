@@ -48,6 +48,7 @@ func Preprocess(ctx context.Context, opts PreprocessOptions) (datapackage.Publis
 		ArticleSchema: datapackage.ArticleSchema,
 		Language:      lang,
 		IDStrategy:    idStrategyOf(opts.Mapping),
+		Identity:      opts.Mapping.Identity,
 		ProducedBy:    &opts.ProducedBy,
 		Raw:           &datapackage.RawRef{Name: raw.Name, Version: raw.Version},
 		Sources:       httpsSources(raw.Sources),

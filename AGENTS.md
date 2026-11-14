@@ -86,12 +86,24 @@ The type system is organized into bounded contexts, each with its own package:
 ### Data Mapping System
 The project uses YAML configuration files to map source data fields to internal Article structure. Configuration files follow the DataMapping schema (`api/mapping-spec/datamapping-v1.json`) with fieldMappings that specify source/target fields and their source types, a `constants:` block (`Language: eng`) and `output.format` (`parquet` or `jsonl`). An unknown key, two sources on one target, or a target outside the list fails the load. `Title` and `URL` are required on every mapping, and `PublisherDomain` is always derived from the url.
 
-Article ids are `uuidv5` of the page the url names: the normalised url, with its fragment and `utm_*` parameters dropped, minus the scheme, a leading `www.` and a trailing slash, so the http, https and tracking variants of one page are one article. It is the only `idStrategy` kind, and the default when `idStrategy` is left out; its `source`, if given, must be the column mapped to `URL`. The same input always yields the same ids, so preprocess can be re-run without orphaning pools, qrels, or embeddings. No mapping sets the id directly: a dataset's own id, or any column unique per record, maps to `Metadata.ExternalID` so a canonical row can be traced back to its raw record.
+Article ids are `uuidv5` of the normalised url, the only `idStrategy` kind, and the default when `idStrategy` is left out; its `source`, if given, must be the column mapped to `URL`. The same input always yields the same ids, so preprocess can be re-run without orphaning pools, qrels, or embeddings. No mapping sets the id directly: a dataset's own id, or any column unique per record, maps to `Metadata.ExternalID` so a canonical row can be traced back to its raw record.
 
 ```yaml
 idStrategy:
   kind: uuidv5
   source: url
+```
+
+An optional `identity.ignore` block lists the url parts that do not change which article a url names: `scheme`, `www`, `trailingSlash`, `fragment`, and `queryParams` by name or by a `prefix*`. The id then hashes the url with those parts left out, so preprocess keeps one article per page; the stored url stays as written. Left out, ids follow the url as written, and the canonical descriptor records the block when it is set.
+
+```yaml
+identity:
+  ignore:
+    scheme: true
+    www: true
+    trailingSlash: true
+    fragment: true
+    queryParams: ["utm_*"]
 ```
 
 ### Storage Layer

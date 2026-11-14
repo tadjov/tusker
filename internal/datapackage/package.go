@@ -27,14 +27,16 @@ type Package struct {
 	ArticleSchema string        `json:"articleSchema,omitempty"`
 	Language      language.Code `json:"language,omitempty"`
 	IDStrategy    *IDStrategy   `json:"idStrategy,omitempty"`
-	ProducedBy    *ProducedBy   `json:"producedBy,omitempty"`
-	Report        *Report       `json:"report,omitempty"`
-	Embedding     *Embedding    `json:"embedding,omitempty"`
-	Canonical     *Ref          `json:"canonical,omitempty"`
-	Raw           *RawRef       `json:"raw,omitempty"`
-	Suite         *Suite        `json:"suite,omitempty"`
-	Sources       []Source      `json:"sources,omitempty"`
-	Resources     []Resource    `json:"resources" schema:"required,minItems=1"`
+	// Identity is the mapping's url identity rule; nil means ids follow the url as written.
+	Identity   *datamapping.Identity `json:"identity,omitempty"`
+	ProducedBy *ProducedBy           `json:"producedBy,omitempty"`
+	Report     *Report               `json:"report,omitempty"`
+	Embedding  *Embedding            `json:"embedding,omitempty"`
+	Canonical  *Ref                  `json:"canonical,omitempty"`
+	Raw        *RawRef               `json:"raw,omitempty"`
+	Suite      *Suite                `json:"suite,omitempty"`
+	Sources    []Source              `json:"sources,omitempty"`
+	Resources  []Resource            `json:"resources" schema:"required,minItems=1"`
 }
 
 // Resource is one file of a package; Path is relative to the descriptor.

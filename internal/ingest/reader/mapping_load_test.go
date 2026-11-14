@@ -94,6 +94,11 @@ var unknownKeyMappings = []struct {
 		wantKey: "kidn",
 	},
 	{
+		name:    "inside identity.ignore",
+		doc:     validMapping + "identity:\n  ignore:\n    trailingslash: true\n",
+		wantKey: "trailingslash",
+	},
+	{
 		name:    "inside a field mapping",
 		doc:     replaced(validMapping, "    target: Title\n", "    target: Title\n    requried: true\n"),
 		wantKey: "requried",
@@ -148,6 +153,9 @@ var rejectedMappings = []struct {
 		wantInErr:  "Metadata.Extra.k",
 		crossField: true,
 	},
+	{name: "an identity that ignores nothing", doc: validMapping + "identity:\n  ignore: {}\n", wantInErr: "ignore names no url part", crossField: true},
+	{name: "a query param pattern with an inner *", doc: validMapping + "identity:\n  ignore:\n    queryParams: [\"utm_*_id\"]\n", wantInErr: "utm_*_id", crossField: true},
+	{name: "a bare * query param pattern", doc: validMapping + "identity:\n  ignore:\n    queryParams: [\"*\"]\n", wantInErr: "query param", crossField: true},
 	{name: "no url", doc: replaced(validMapping, "  - source: link\n    sourceType: url\n    target: URL\n    required: true\n", ""), wantInErr: "URL", crossField: true},
 	{name: "an optional title", doc: replaced(validMapping, "    target: Title\n    required: true\n", "    target: Title\n"), wantInErr: "Title", crossField: true},
 	{name: "a url read as a plain string", doc: replaced(validMapping, "sourceType: url\n    target: URL", "sourceType: string\n    target: URL"), wantInErr: "URL", crossField: true},
@@ -207,6 +215,7 @@ func TestMappingSchema_AgreesWithTheLoader(t *testing.T) {
 		{name: "a 100-character Cyrillic name", doc: replaced(validMapping, "name: Test", "name: "+strings.Repeat("ж", 100))},
 		{name: "a 500-character Cyrillic description", doc: replaced(validMapping, "name: Test", "name: Test\n  description: "+strings.Repeat("ж", 500))},
 		{name: "a 100-character Cyrillic source", doc: replaced(validMapping, "source: title", "source: "+strings.Repeat("ж", 100))},
+		{name: "every identity rule", doc: validMapping + "identity:\n  ignore:\n    scheme: true\n    www: true\n    trailingSlash: true\n    fragment: true\n    queryParams: [\"utm_*\", \"ref\"]\n"},
 	}
 	for _, tt := range accepted {
 		t.Run("accepts "+tt.name, func(t *testing.T) {
