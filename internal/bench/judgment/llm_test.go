@@ -138,15 +138,15 @@ func TestResolveClaudeModelAliases(t *testing.T) {
 	}
 }
 
-// No Claude judge picks a model for the operator: one left unnamed fails,
-// naming the flag that names it.
-func TestLLMRequiresAModel(t *testing.T) {
+// The library grades with the model it is given, so an empty one fails
+// naming the flag rather than falling back to a model nobody named.
+func TestLLMRefusesAnEmptyModel(t *testing.T) {
 	for _, provider := range []Provider{ProviderClaudeCLI, ProviderClaudeAPI} {
 		t.Run(string(provider), func(t *testing.T) {
-			_, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key"})
+			_, err := NewLLMStrategy(StrategyOptions{Provider: provider, APIKey: "test-key", Effort: EffortLow})
 
 			if err == nil || !strings.Contains(err.Error(), "--model") {
-				t.Errorf("NewLLMStrategy without a model: err = %v, want one naming --model", err)
+				t.Errorf("NewLLMStrategy with an empty model: err = %v, want one naming --model", err)
 			}
 		})
 	}

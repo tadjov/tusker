@@ -73,11 +73,13 @@ The llm strategy is vendor-neutral: --provider names the endpoint
 (` + strings.Join(judgment.KnownProviders(), ", ") + `), and registering a new
 provider is all it takes to add Codex or ChatGPT.
 
---model is required for llm: a full model id or a shorthand for the current
-generation (` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `). --effort sets how much the
-model may think before it grades (default low). The resolved id, the effort,
-the provider and the prompt version are recorded in the artifact's judge block,
-so qrels always name the grader that produced them.
+--model takes a full model id or a shorthand for the current generation
+(` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `) and defaults to ` + judgment.DefaultJudgeModel + `,
+the model of the final cc-news judgments; --model haiku is the cheap option for
+trial runs. --effort sets how much the model may think before it grades
+(default low). The resolved id, the effort, the provider and the prompt version
+are recorded in the artifact's judge block, so qrels always name the grader
+that produced them.
 
 Output goes to <track>/trec/annotations.<strategy>.yaml, where <strategy> is the
 strategy for heuristic judges and the provider for llm judges.
@@ -111,8 +113,8 @@ Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")
 	cmd.Flags().StringVar(&f.provider, "provider", string(judgment.DefaultProvider),
 		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
-	cmd.Flags().StringVar(&f.model, "model", "",
-		"Judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); required for --strategy llm")
+	cmd.Flags().StringVar(&f.model, "model", judgment.DefaultJudgeModel,
+		"LLM judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); haiku for cheap trial runs")
 	cmd.Flags().StringVar(&f.effort, "effort", string(judgment.EffortLow),
 		"Effort the llm judge's model grades at: "+strings.Join(judgment.KnownEfforts(), " | "))
 	cmd.Flags().StringVar(&f.apiBaseURL, "api-base", "", "Anthropic API base URL")

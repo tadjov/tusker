@@ -11,9 +11,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -739,7 +741,8 @@ func writtenJudge(t *testing.T, fx *judgeFixture, set string) map[string]any {
 }
 
 // gradingClaudeCLI is a stand-in claude binary that grades 2 every doc id its
-// prompt names, in the envelope --output-format json prints.
+// prompt names, in the envelope --output-format json prints, and keeps the
+// arguments of its last grade.
 func gradingClaudeCLI(t *testing.T) string {
 	t.Helper()
 	script := `#!/bin/sh
@@ -747,6 +750,7 @@ if [ "$1" = "--version" ]; then
   echo "2.1.322 (Claude Code)"
   exit 0
 fi
+printf '%s\n' "$@" > "$(dirname "$0")/args"
 ids=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | sort -u)
 entries=""
 for id in $ids; do
@@ -760,31 +764,63 @@ printf '{"type":"result","is_error":false,"result":"[%s]"}\n' "$entries"
 	return path
 }
 
-// An LLM judge grades with the model the operator names: without --model the
-// command fails naming the flag, before it grades or writes anything.
-func TestJudge_LLMWithoutModelFailsNamingTheFlag(t *testing.T) {
-	var reached atomic.Bool
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		reached.Store(true)
-		w.WriteHeader(http.StatusInternalServerError)
+// Without --model the LLM judge grades with claude-sonnet-5-5, the model of
+// the final cc-news judgments, and records that id; an explicit empty
+// --model, as an unset make variable gives, still fails naming the flag.
+func TestJudge_LLMWithoutModelGradesWithTheDefault(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake binary is a POSIX shell script")
+	}
+	var apiModels []string
+	var mu sync.Mutex
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model    string `json:"model"`
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		mu.Lock()
+		apiModels = append(apiModels, body.Model)
+		mu.Unlock()
+		docID := docIDPattern.FindString(body.Messages[0].Content)
+		reply, err := json.Marshal(`{"doc_id":"` + docID + `","grade":2}`)
+		assert.NoError(t, err)
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"type":"message","role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":` + string(reply) + `}]}`))
 	}))
 	defer api.Close()
-	noCLI := filepath.Join(t.TempDir(), "no-claude-here")
+	cli := gradingClaudeCLI(t)
 
-	for _, provider := range []string{"claude-api", "claude-cli"} {
+	for _, provider := range []string{"claude-cli", "claude-api"} {
 		t.Run(provider, func(t *testing.T) {
 			fx := newJudgeFixture(t, "climate change", "climate change summit")
 
-			err := fx.judge(t, "--strategy", "llm", "--provider", provider,
-				"--api-key", "test-key", "--api-base", api.URL, "--cli-binary", noCLI)
+			require.NoError(t, fx.judge(t, "--strategy", "llm", "--provider", provider,
+				"--api-key", "test-key", "--api-base", api.URL, "--cli-binary", cli))
+
+			assert.Equal(t, "claude-sonnet-5-5", fx.annotations(t, provider).Judge().Model)
+		})
+	}
+	assert.Equal(t, "claude-sonnet-5-5", gradingCLIFlag(t, cli, "--model"), "the CLI grades with the default")
+	assert.Equal(t, []string{"claude-sonnet-5-5"}, slices.Compact(apiModels), "the API grades with the default")
+
+	for _, provider := range []string{"claude-cli", "claude-api"} {
+		t.Run(provider+" with an empty --model", func(t *testing.T) {
+			fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+			err := fx.judge(t, "--strategy", "llm", "--provider", provider, "--model", "",
+				"--api-key", "test-key", "--api-base", api.URL, "--cli-binary", cli)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "--model")
 			assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations."+provider+".yaml"))
 		})
 	}
-	assert.False(t, reached.Load(), "no request reaches the API")
 }
+
+var docIDPattern = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 
 func TestJudge_LLMUnknownEffortFailsNamingTheFlag(t *testing.T) {
 	fx := newJudgeFixture(t, "climate change", "climate change summit")
@@ -855,4 +891,15 @@ func TestJudge_LLMEmptyModelFailsWithoutTouchingTheAnnotations(t *testing.T) {
 	kept, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "graded by hand, keep me\n", string(kept))
+}
+
+// gradingCLIFlag is the value the last grade passed gradingClaudeCLI for flag.
+func gradingCLIFlag(t *testing.T, cli, flag string) string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(cli), "args"))
+	require.NoError(t, err)
+	args := strings.Split(string(raw), "\n")
+	i := slices.Index(args, flag)
+	require.True(t, i >= 0 && i+1 < len(args), "the CLI got %s", flag)
+	return args[i+1]
 }

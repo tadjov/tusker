@@ -21,6 +21,10 @@ import (
 	"time"
 )
 
+// DefaultJudgeModel grades when --model is omitted: the model chosen for the
+// final cc-news judgments.
+const DefaultJudgeModel = "claude-sonnet-5-5"
+
 // claudeModelAliases lets --model take a short name for the current
 // generation. The alias is expanded at construction so the judge block always
 // records a concrete model id — an alias would silently re-point at a
@@ -43,8 +47,8 @@ const (
 // a suffix such as [1m], which the CLI strips before it reports the model.
 var claudeModelID = regexp.MustCompile(`^claude-[a-z0-9-]+$`)
 
-// requireClaudeModel resolves the model provider grades with; there is no
-// default, so grades always come from a model the operator chose.
+// requireClaudeModel resolves the model provider grades with. An empty one
+// fails: only an omitted --model gets DefaultJudgeModel, as the flag's default.
 func requireClaudeModel(provider Provider, model string) (string, error) {
 	if model == "" {
 		return "", fmt.Errorf("provider %s needs --model to name the judge model, e.g. --model sonnet", provider)

@@ -301,7 +301,7 @@ judge's recall@10 against exact search. Hand grades from `bench grade --against 
 (or `claude-api`) give the κ that validates the LLM judge.
 
 ```bash
-bench judge <track> --strategy llm --provider claude-cli --model sonnet
+bench judge <track> --strategy llm --provider claude-cli
 ```
 
 - Phrase, boolean and filter constraints are decided in code before the model is asked. A
@@ -321,9 +321,11 @@ bench judge <track> --strategy llm --provider claude-cli --model sonnet
   seed 0 included.
 - Every request carries one rubric and shows each doc's title and description in full and
   its content up to 1,744 characters, the length of the median cc-news article.
-- `--model` is required: a lowercase `claude-` model id, or `haiku`, `sonnet`, `opus` or
-  `fable` for the current generation (`claude-sonnet-5-5` for `sonnet`). Ids the CLI would
-  answer under another name (`sonnet[1m]`, `opusplan`, `Claude-Sonnet-5-5`) are refused. `--effort` sets how much the model
+- `--model` defaults to `claude-sonnet-5-5`, the model of the final cc-news judgments, and
+  takes a lowercase `claude-` model id or `haiku`, `sonnet`, `opus` or `fable` for the
+  current generation; `--model haiku` is the cheap option for trial runs. An explicit empty
+  `--model ""` fails naming the flag. Ids the CLI would answer under another name
+  (`sonnet[1m]`, `opusplan`, `Claude-Sonnet-5-5`) are refused. `--effort` sets how much the model
   thinks before it grades (`low` by default). The judge block records the resolved model,
   the effort, the output budget (16,000 tokens a doc, room for thinking at any effort; a
   batch's 20,000 sits under `batching`, below the ~21,333 a request may ask for without
@@ -513,7 +515,7 @@ Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: 
 
 Key flags:
 - `--resume`: skip docs already graded (errors naming each field of the judge block that changed). `bm25`, `vector` and `hybrid` skip only fully graded queries and regrade any other query whole, since they grade the whole pool at once
-- `--model M`: the LLM judge's model, a full id or `haiku`, `sonnet`, `opus`, `fable`; required
+- `--model M`: the LLM judge's model, a full id or `haiku`, `sonnet`, `opus`, `fable` (default `claude-sonnet-5-5`; `haiku` for cheap trial runs)
 - `--effort E`: the LLM judge's effort, `low` (default), `medium`, `high`, `xhigh` or `max`
 - `--batch N`: grade N LLM docs per request instead of one (`bm25`, `vector` and `hybrid` grade each query's whole pool at once and refuse it)
 - `--seed S`: seed of the shuffle that forms `--batch` batches (default 1)
