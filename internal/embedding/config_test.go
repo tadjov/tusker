@@ -22,7 +22,7 @@ func TestLoadConfigFromEnv_Dim(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("EMBEDDING_SOURCE", string(SourceFile))
+			t.Setenv("EMBEDDING_ENABLED", "")
 			t.Setenv("EMBEDDING_DIM", tt.raw)
 
 			cfg, err := LoadConfigFromEnv()
@@ -38,7 +38,7 @@ func TestLoadConfigFromEnv_Dim(t *testing.T) {
 }
 
 func TestLoadConfigFromEnv_RefusesTheRenamedMaxLength(t *testing.T) {
-	t.Setenv("EMBEDDING_SOURCE", string(SourceFile))
+	t.Setenv("EMBEDDING_ENABLED", "")
 	t.Setenv("EMBEDDING_MAX_LENGTH", "512")
 
 	_, err := LoadConfigFromEnv()
