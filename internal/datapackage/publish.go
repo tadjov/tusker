@@ -19,11 +19,13 @@ type PublishOptions struct {
 	Version    string // empty means DefaultVersion
 }
 
-// Published is a package in its version folder; Existing means it was already there.
+// Published is a package in its version folder; Existing means it was already there,
+// Restored that its missing resource came from this run.
 type Published struct {
 	Dir      string
 	Package  Package
 	Existing bool
+	Restored bool
 }
 
 // VersionConflictError reports a version already published with other bytes.
@@ -40,7 +42,8 @@ func (e *VersionConflictError) Error() string {
 }
 
 // Publish moves a staged canonical or embeddings package to ParentDir/<version>.
-// An existing version with the same resource hash is kept; any other is a *VersionConflictError.
+// An existing version with the same resource hash is kept, its resource restored if
+// missing; any other is a *VersionConflictError.
 func Publish(ctx context.Context, pkg Package, opts PublishOptions) (Published, error) {
 	if opts.Version == "" {
 		opts.Version = DefaultVersion
@@ -112,16 +115,39 @@ func openPublished(ctx context.Context, dir string) (Published, bool, error) {
 }
 
 func keepPublished(staging string, existing Published, staged Package) (Published, error) {
-	if err := os.RemoveAll(staging); err != nil {
-		return Published{}, fmt.Errorf("remove staging %s: %w", staging, err)
-	}
 	// Open guarantees at least one resource.
 	publishedHash := existing.Package.Resources[0].Hash
 	if len(existing.Package.Resources) != 1 || publishedHash != staged.Resources[0].Hash {
+		if err := os.RemoveAll(staging); err != nil {
+			return Published{}, fmt.Errorf("remove staging %s: %w", staging, err)
+		}
 		return Published{}, &VersionConflictError{
 			Dir: existing.Dir, Version: staged.Version,
 			PublishedHash: publishedHash, StagedHash: staged.Resources[0].Hash,
 		}
 	}
+	restored, err := restoreMissingResource(staging, existing, staged)
+	if err != nil {
+		return Published{}, err
+	}
+	if err := os.RemoveAll(staging); err != nil {
+		return Published{}, fmt.Errorf("remove staging %s: %w", staging, err)
+	}
+	existing.Restored = restored
 	return existing, nil
+}
+
+// restoreMissingResource fills in a resource whose descriptor is on disk without it,
+// as in a clone that tracks descriptors but not payloads. The hashes already match.
+func restoreMissingResource(staging string, existing Published, staged Package) (bool, error) {
+	target := filepath.Join(existing.Dir, existing.Package.Resources[0].Path)
+	if _, err := os.Stat(target); err == nil {
+		return false, nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return false, fmt.Errorf("check published resource %s: %w", target, err)
+	}
+	if err := os.Rename(filepath.Join(staging, staged.Resources[0].Path), target); err != nil {
+		return false, fmt.Errorf("restore published resource %s: %w", target, err)
+	}
+	return true, nil
 }
