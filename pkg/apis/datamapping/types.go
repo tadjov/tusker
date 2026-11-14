@@ -34,6 +34,9 @@ type DataMapper struct {
 	// IdStrategy decides how article ids are produced
 	IdStrategy IdStrategy `json:"idStrategy,omitempty" yaml:"idStrategy,omitempty" description:"How article ids are produced"`
 
+	// Identity decides which url differences still name the same article
+	Identity *Identity `json:"identity,omitempty" yaml:"identity,omitempty" description:"Which url differences still name the same article; left out, the id follows the url as written"`
+
 	// Constants are written on every article
 	Constants Constants `json:"constants" yaml:"constants" schema:"required" description:"Values written on every article"`
 
@@ -80,6 +83,48 @@ func (s IdStrategy) validate(urlSource string) error {
 	}
 	if s.Source != "" && s.Source != urlSource {
 		return fmt.Errorf("id strategy %q hashes the url, so its source must be %q, the column mapped to URL, not %q", kind, urlSource, s.Source)
+	}
+	return nil
+}
+
+// Identity decides which urls name one article: the id hashes the url with these parts ignored.
+type Identity struct {
+	Ignore IdentityIgnore `json:"ignore" yaml:"ignore" schema:"required" description:"Url parts that do not change which article a url names"`
+}
+
+type IdentityIgnore struct {
+	Scheme        bool     `json:"scheme,omitempty" yaml:"scheme,omitempty" description:"http and https name one page"`
+	WWW           bool     `json:"www,omitempty" yaml:"www,omitempty" description:"www.example.com and example.com name one page"`
+	TrailingSlash bool     `json:"trailingSlash,omitempty" yaml:"trailingSlash,omitempty" description:"/story and /story/ name one page"`
+	Fragment      bool     `json:"fragment,omitempty" yaml:"fragment,omitempty" description:"/story#comments and /story name one page"`
+	QueryParams   []string `json:"queryParams,omitempty" yaml:"queryParams,omitempty" description:"Query parameters that do not change the page, by name; a trailing * matches a prefix, as in utm_*"`
+}
+
+// IgnoresQueryParam matches key case-insensitively.
+func (i IdentityIgnore) IgnoresQueryParam(key string) bool {
+	key = strings.ToLower(key)
+	for _, pattern := range i.QueryParams {
+		pattern = strings.ToLower(pattern)
+		if prefix, ok := strings.CutSuffix(pattern, "*"); ok {
+			if strings.HasPrefix(key, prefix) {
+				return true
+			}
+		} else if key == pattern {
+			return true
+		}
+	}
+	return false
+}
+
+func (i Identity) validate() error {
+	ignore := i.Ignore
+	if !ignore.Scheme && !ignore.WWW && !ignore.TrailingSlash && !ignore.Fragment && len(ignore.QueryParams) == 0 {
+		return errors.New("ignore names no url part; leave identity out to keep the url as written")
+	}
+	for _, pattern := range ignore.QueryParams {
+		if name := strings.TrimSuffix(pattern, "*"); name == "" || strings.Contains(name, "*") {
+			return fmt.Errorf("query param %q: want a name, or a prefix followed by one trailing *", pattern)
+		}
 	}
 	return nil
 }
@@ -239,6 +284,11 @@ func (dm *DataMapper) Validate() error {
 	}
 	if err := dm.IdStrategy.validate(byTarget[TargetURL].Source); err != nil {
 		return fmt.Errorf("idStrategy: %w", err)
+	}
+	if dm.Identity != nil {
+		if err := dm.Identity.validate(); err != nil {
+			return fmt.Errorf("identity: %w", err)
+		}
 	}
 	return nil
 }
